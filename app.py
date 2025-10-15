@@ -1048,6 +1048,45 @@ elif st.session_state.step == 4:
             st.plotly_chart(fig, use_container_width=True)
             
             st.markdown(
+                f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                            padding: 20px; border-radius: 10px; text-align: center;
+                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-top: 10px;'>
+                    <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
+                        {results['percent_eui_savings']:.1f}%, {results['total_savings_kbtu_sf']:.1f} kBtu/SF-yr
+                    </h2>
+                    <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Savings</p>
+                </div>""",
+                unsafe_allow_html=True
+            )
+        
+        with col_cost:
+            st.markdown('<h4 style="text-align: center;">Annual Cost Savings</h4>', unsafe_allow_html=True)
+            
+            st.markdown(
+                f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                            padding: 28px; border-radius: 10px; text-align: center;
+                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px; margin-top: 10px;'>
+                    <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
+                    <h1 style='color: white; margin: 0; font-size: 2.5em; font-weight: bold;'>
+                        ${results['total_cost_savings']:,.0f}
+                    </h1>
+                </div>""",
+                unsafe_allow_html=True
+            )
+            
+            st.markdown(
+                f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
+                            padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                    <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Electric Savings</p>
+                    <p style='font-size: 1.6em; margin: 0; font-weight: bold; color: #1A4451;'>
+                        ${results['electric_cost_savings']:,.0f}<span style='font-size: 0.5em;'>/year</span>
+                    </p>
+                </div>""",
+                unsafe_allow_html=True
+            )
+            
+            st.markdown(
                 f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
                             padding: 20px; border-radius: 8px; text-align: center;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
@@ -1278,43 +1317,5 @@ with st.sidebar:
             if building_type == 'Office':
                 st.markdown(f"**Operating Hours:** {st.session_state.get('operating_hours', 0):,}/yr")
             elif building_type == 'Hotel':
-                st.markdown(f"**Occupancy:** {st.session_state.get('occupancy_percent', 0)}%")135deg, #2C5F6F 0%, #4A90A4 100%); 
-                            padding: 20px; border-radius: 10px; text-align: center;
-                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-top: 10px;'>
-                    <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
-                        {results['percent_eui_savings']:.1f}%, {results['total_savings_kbtu_sf']:.1f} kBtu/SF-yr
-                    </h2>
-                    <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Savings</p>
-                </div>""",
-                unsafe_allow_html=True
-            )
-        
-        with col_cost:
-            st.markdown('<h4 style="text-align: center;">Annual Cost Savings</h4>', unsafe_allow_html=True)
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
-                            padding: 28px; border-radius: 10px; text-align: center;
-                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px; margin-top: 10px;'>
-                    <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
-                    <h1 style='color: white; margin: 0; font-size: 2.5em; font-weight: bold;'>
-                        ${results['total_cost_savings']:,.0f}
-                    </h1>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
-                            padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
-                    <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Electric Savings</p>
-                    <p style='font-size: 1.6em; margin: 0; font-weight: bold; color: #1A4451;'>
-                        ${results['electric_cost_savings']:,.0f}<span style='font-size: 0.5em;'>/year</span>
-                    </p>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(
+                st.markdown(f"**Occupancy:** {st.session_state.get('occupancy_percent', 0)}%")
+                st.write
