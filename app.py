@@ -15,11 +15,12 @@ import streamlit as st
 import pandas as pd
 import os
 import plotly.graph_objects as go
+import plotly.io as pio
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
@@ -895,9 +896,9 @@ if REGRESSION_COEFFICIENTS.empty:
 # Progress bar logic - only show for steps 1-3, not for step 0, 0.5, or 4
 if st.session_state.step >= 1 and st.session_state.step <= 3:
     display_step = int(st.session_state.step)
-    progress = display_step / 4
+    progress = display_step / 3
     st.progress(progress)
-    st.write(f'Step {display_step} of 4')
+    st.write(f'Step {display_step} of 3')
 
 # STEP 0: Building Type Selection
 if st.session_state.step == 0:
@@ -949,7 +950,7 @@ elif st.session_state.step == 0.5:
 
 # STEP 1: Location
 elif st.session_state.step == 1:
-    st.header('Step 2: Project Location')
+    st.header('Step 1: Project Location')
     
     state_options = sorted(WEATHER_DATA_BY_STATE.keys())
     default_state_idx = 0
@@ -1011,7 +1012,7 @@ elif st.session_state.step == 1:
 # STEP 2: Building Envelope
 elif st.session_state.step == 2:
     building_type = st.session_state.get('building_type', 'Office')
-    st.header('Step 3: Building Envelope Information')
+    st.header('Step 2: Building Envelope Information')
     col1, col2 = st.columns(2)
     
     with col1:
@@ -1105,7 +1106,7 @@ elif st.session_state.step == 2:
 # STEP 3: HVAC & Operations
 elif st.session_state.step == 3:
     building_type = st.session_state.get('building_type', 'Office')
-    st.header('Step 4: HVAC & Operations')
+    st.header('Step 3: HVAC & Operations')
     col1, col2 = st.columns(2)
     
     with col1:
