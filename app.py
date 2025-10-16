@@ -148,7 +148,6 @@ def calculate_cooling_multiplier_office(cdd, building_size):
 
 def calculate_cooling_multiplier_school(cdd, hvac_type):
     """Calculate cooling adjustment multiplier for School based on CDD and HVAC type"""
-    # Map user-friendly names to coefficient keys
     hvac_key = 'VAV' if hvac_type == 'Variable Air Volume' else 'FCU'
     coeffs = COOLING_MULT_COEFFICIENTS_SCHOOL[hvac_key]
     a, b, c, d = coeffs['a'], coeffs['b'], coeffs['c'], coeffs['d']
@@ -240,16 +239,14 @@ def build_lookup_config_school(inputs):
     base = 'Single' if inputs['existing_window'] == 'Single pane' else 'Double'
     csw_type = CSW_TYPE_MAPPING.get(inputs['csw_type'], inputs['csw_type'])
     
-    # Map user-friendly HVAC names to CSV values
     hvac_system = inputs['hvac_system']
     if hvac_system == 'Fan Coil Unit':
         hvac_fuel = 'FCU'
     elif hvac_system == 'Variable Air Volume':
         hvac_fuel = 'VAV'
-    else:  # Other
-        hvac_fuel = 'VAV'  # Default to VAV
+    else:
+        hvac_fuel = 'VAV'
     
-    # Get school type
     school_type = SCHOOL_TYPE_MAPPING.get(inputs['school_type'], inputs['school_type'])
     
     heating_fuel = inputs['heating_fuel']
@@ -592,7 +589,6 @@ def calculate_savings_school(inputs):
     hdd = inputs.get('hdd', 0)
     cdd = inputs.get('cdd', 0)
     
-    # Schools don't interpolate - direct lookup
     config = build_lookup_config_school(inputs)
     
     row = find_regression_row(config, 'School')
@@ -601,7 +597,6 @@ def calculate_savings_school(inputs):
         st.error(f"⚠️ Could not find School regression coefficients")
         return None
     
-    # Calculate heating savings
     if heating_fuel == 'Natural Gas':
         heating_savings = calculate_from_regression(row, hdd, is_heating=True)
         gas_savings = heating_savings
@@ -610,20 +605,16 @@ def calculate_savings_school(inputs):
         electric_heating = calculate_from_regression(row, hdd, is_heating=True)
         gas_savings = 0
     
-    # Calculate cooling savings
     cooling_savings = calculate_from_regression(row, cdd, is_heating=False)
     
-    # Apply cooling multiplier based on whether cooling is installed
     c31 = electric_heating
     if cooling_installed == "Yes":
         c32 = cooling_savings
     else:
-        # When cooling is NOT installed, apply cooling multiplier based on CDD and HVAC type
         cooling_multiplier = calculate_cooling_multiplier_school(cdd, inputs['hvac_system'])
         c32 = cooling_savings * cooling_multiplier
     c33 = gas_savings
     
-    # Find baseline EUI
     baseline_row = find_baseline_eui_row(config, 'School')
     
     if baseline_row is None:
@@ -632,7 +623,6 @@ def calculate_savings_school(inputs):
     
     baseline_eui = calculate_from_regression(baseline_row, hdd, is_heating=True)
     
-    # Calculate final savings
     electric_savings_kwh = (c31 + c32) * csw_area
     gas_savings_therms = c33 * csw_area
     electric_cost_savings = electric_savings_kwh * electric_rate
@@ -902,18 +892,12 @@ if REGRESSION_COEFFICIENTS.empty:
     st.error("⚠️ Unable to load regression coefficients.")
     st.stop()
 
-# Calculate total steps
-total_steps = 4  # Building type/location, Building envelope, HVAC, Results
-if st.session_state.step > 0 and st.session_state.step != 0.5:
-    # Don't show progress bar for step 0.5 (school type selection)
-    # Adjust display for step numbering
-    display_step = st.session_state.step
-    if st.session_state.step >= 1:
-        display_step = int(st.session_state.step)
-    
-    progress = display_step / total_steps
+# Progress bar logic - only show for steps 1-3, not for step 0, 0.5, or 4
+if st.session_state.step >= 1 and st.session_state.step <= 3:
+    display_step = int(st.session_state.step)
+    progress = display_step / 4
     st.progress(progress)
-    st.write(f'Step {display_step} of {total_steps}')
+    st.write(f'Step {display_step} of 4')
 
 # STEP 0: Building Type Selection
 if st.session_state.step == 0:
@@ -936,7 +920,6 @@ if st.session_state.step == 0:
     with col3:
         if st.button('🏫 School', use_container_width=True, type='primary'):
             st.session_state.building_type = 'School'
-            # For schools, go to school type selection first
             st.session_state.step = 0.5
             st.rerun()
 
@@ -1015,9 +998,9 @@ elif st.session_state.step == 1:
         if st.button('← Back'):
             building_type = st.session_state.get('building_type', 'Office')
             if building_type == 'School':
-                st.session_state.step = 0.5  # Go back to school type selection
+                st.session_state.step = 0.5
             else:
-                st.session_state.step = 0  # Go back to building type selection
+                st.session_state.step = 0
             st.rerun()
     with col_next:
         if st.button('Next →', type='primary'):
@@ -1032,14 +1015,13 @@ elif st.session_state.step == 2:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Set building area limits based on building type
         if building_type == 'Hotel':
             min_area, max_area = 15000, 250000
             area_help = "Hotel building area must be between 15,000 and 250,000 square feet"
         elif building_type == 'School':
             min_area, max_area = 25000, 350000
             area_help = "School building area must be between 25,000 and 350,000 square feet"
-        else:  # Office
+        else:
             min_area, max_area = 15000, 500000
             area_help = "Office building area must be between 15,000 and 500,000 square feet"
         
@@ -1139,14 +1121,13 @@ elif st.session_state.step == 3:
         elif building_type == 'Hotel':
             occupancy_percent = st.slider('Average Occupancy (%)', min_value=33, max_value=100, value=st.session_state.get('occupancy_percent', 70), step=1, key='occupancy_input', help='Between 33% and 100%')
             st.session_state.occupancy_percent = occupancy_percent
-        # Note: School type was already selected in Step 0.5
     
     with col2:
         if building_type == 'Office':
             hvac_systems_list = OFFICE_HVAC_SYSTEMS
         elif building_type == 'Hotel':
             hvac_systems_list = HOTEL_HVAC_SYSTEMS
-        else:  # School
+        else:
             hvac_systems_list = SCHOOL_HVAC_SYSTEMS
         
         hvac_idx = 0
@@ -1155,7 +1136,6 @@ elif st.session_state.step == 3:
         hvac_system = st.selectbox('HVAC System Type', options=hvac_systems_list, index=hvac_idx, key='hvac_system_select')
         st.session_state.hvac_system = hvac_system
         
-        # Heating fuel logic
         if building_type == 'Office' and hvac_system == 'Packaged VAV with electric reheat':
             heating_fuels_list = ['Electric']
             fuel_idx = 0
@@ -1219,7 +1199,7 @@ elif st.session_state.step == 4:
     elif building_type == 'Hotel':
         inputs['occupancy_percent'] = st.session_state.get('occupancy_percent', 70)
         results = calculate_savings_hotel(inputs)
-    else:  # School
+    else:
         inputs['school_type'] = st.session_state.get('school_type', 'Primary School')
         results = calculate_savings_school(inputs)
     
@@ -1364,7 +1344,7 @@ elif st.session_state.step == 4:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Download PDF Button
+    # Action buttons
     col_restart, col_download = st.columns([1, 1])
     with col_restart:
         if st.button('← Start Over', type='secondary', use_container_width=True):
@@ -1478,7 +1458,6 @@ with st.sidebar:
                 st.session_state.occupancy_percent = occupancy
                 st.rerun()
         elif building_type == 'School':
-            # School type was selected in Step 0.5 and cannot be changed here
             st.text(f"School Type: {st.session_state.get('school_type', 'N/A')}")
         
         if building_type == 'Office':
