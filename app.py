@@ -64,6 +64,12 @@ COOLING_MULT_COEFFICIENTS_OFFICE = {
     'Large': {'a': 0.779295373677, 'b': 0.000049630331, 'c': -2.8839e-8, 'd': 1e-12}
 }
 
+# Cooling adjustment polynomial coefficients for Schools (both PS and SS use these)
+COOLING_MULT_COEFFICIENTS_SCHOOL = {
+    'VAV': {'a': 0.543627257519, 'b': -0.000267199514, 'c': 6.9504e-8, 'd': -7e-12},
+    'FCU': {'a': 0.948347618221, 'b': -0.000239269189, 'c': 5.443e-9, 'd': 1e-12}
+}
+
 # ============================================================================
 # LOAD DATA FROM CSV FILES
 # ============================================================================
@@ -121,6 +127,15 @@ def calculate_wwr(csw_area, building_area, num_floors):
 def calculate_cooling_multiplier_office(cdd, building_size):
     """Calculate cooling adjustment multiplier for Office based on CDD"""
     coeffs = COOLING_MULT_COEFFICIENTS_OFFICE[building_size]
+    a, b, c, d = coeffs['a'], coeffs['b'], coeffs['c'], coeffs['d']
+    multiplier = a + b * cdd + c * (cdd ** 2) + d * (cdd ** 3)
+    return max(0.0, min(1.0, multiplier))
+
+def calculate_cooling_multiplier_school(cdd, hvac_type):
+    """Calculate cooling adjustment multiplier for School based on CDD and HVAC type"""
+    # Map user-friendly names to coefficient keys
+    hvac_key = 'VAV' if hvac_type == 'Variable Air Volume' else 'FCU'
+    coeffs = COOLING_MULT_COEFFICIENTS_SCHOOL[hvac_key]
     a, b, c, d = coeffs['a'], coeffs['b'], coeffs['c'], coeffs['d']
     multiplier = a + b * cdd + c * (cdd ** 2) + d * (cdd ** 3)
     return max(0.0, min(1.0, multiplier))
@@ -583,9 +598,14 @@ def calculate_savings_school(inputs):
     # Calculate cooling savings
     cooling_savings = calculate_from_regression(row, cdd, is_heating=False)
     
-    # Apply cooling
+    # Apply cooling multiplier based on whether cooling is installed
     c31 = electric_heating
-    c32 = cooling_savings if cooling_installed == "Yes" else 0
+    if cooling_installed == "Yes":
+        c32 = cooling_savings
+    else:
+        # When cooling is NOT installed, apply cooling multiplier based on CDD and HVAC type
+        cooling_multiplier = calculate_cooling_multiplier_school(cdd, inputs['hvac_system'])
+        c32 = cooling_savings * cooling_multiplier
     c33 = gas_savings
     
     # Find baseline EUI
@@ -783,8 +803,8 @@ elif st.session_state.step == 2:
             min_area, max_area = 15000, 250000
             area_help = "Hotel building area must be between 15,000 and 250,000 square feet"
         elif building_type == 'School':
-            min_area, max_area = 15000, 500000
-            area_help = "School building area must be between 15,000 and 500,000 square feet"
+            min_area, max_area = 25000, 350000
+            area_help = "School building area must be between 25,000 and 350,000 square feet"
         else:  # Office
             min_area, max_area = 15000, 500000
             area_help = "Office building area must be between 15,000 and 500,000 square feet"
@@ -1131,6 +1151,8 @@ with st.sidebar:
         
         if building_type == 'Hotel':
             min_area, max_area = 15000, 250000
+        elif building_type == 'School':
+            min_area, max_area = 25000, 350000
         else:
             min_area, max_area = 15000, 500000
         
