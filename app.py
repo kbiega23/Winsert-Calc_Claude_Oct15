@@ -7,8 +7,9 @@ Requirements:
 - pandas
 - plotly
 - reportlab (for PDF generation)
+- kaleido (for plotly chart export to PDF)
 
-Install with: pip install streamlit pandas plotly reportlab
+Install with: pip install streamlit pandas plotly reportlab kaleido
 """
 
 import streamlit as st
@@ -688,6 +689,13 @@ def generate_pdf_report(inputs, results, building_type):
     )
     
     # PAGE 1: ALPEN & WINSERT INFORMATION
+    # Add logo if it exists
+    if os.path.exists('logo.png'):
+        logo = Image('logo.png', width=2*inch, height=0.8*inch)
+        logo.hAlign = 'CENTER'
+        story.append(logo)
+        story.append(Spacer(1, 0.2*inch))
+    
     story.append(Paragraph("Winsert™ Secondary Glazing System", title_style))
     story.append(Paragraph("Energy Savings Analysis Report", heading_style))
     story.append(Spacer(1, 0.3*inch))
@@ -745,58 +753,165 @@ def generate_pdf_report(inputs, results, building_type):
     
     story.append(PageBreak())
     
-    # PAGE 2: PROJECT RESULTS
+    # PAGE 2: PROJECT RESULTS - SECTION A: INPUT SUMMARY
     story.append(Paragraph("Your Energy Savings Analysis", title_style))
     story.append(Spacer(1, 0.2*inch))
     
-    # Project Information
-    story.append(Paragraph("Project Information", heading_style))
-    project_data = [
-        ['Building Type:', building_type],
-        ['Location:', f"{inputs['city']}, {inputs['state']}"],
-        ['Building Area:', f"{inputs['building_area']:,} sq ft"],
-        ['Number of Floors:', f"{inputs['num_floors']}"],
-        ['Secondary Window Area:', f"{inputs['csw_area']:,} sq ft"],
+    story.append(Paragraph("A. Input Summary", heading_style))
+    input_data = [
+        ['Parameter', 'Value'],
+        ['Building Type', building_type],
+        ['Location', f"{inputs['city']}, {inputs['state']}"],
+        ['Building Area', f"{inputs['building_area']:,} sq ft"],
+        ['Number of Floors', f"{inputs['num_floors']}"],
+        ['Existing Window Type', inputs['existing_window']],
+        ['Secondary Window Product', inputs['csw_type']],
+        ['Secondary Window Area', f"{inputs['csw_area']:,} sq ft"],
+        ['HVAC System', inputs['hvac_system']],
+        ['Heating Fuel', inputs['heating_fuel']],
+        ['Cooling Installed', inputs['cooling_installed']],
+        ['Electric Rate', f"${inputs['electric_rate']:.3f}/kWh"],
+        ['Natural Gas Rate', f"${inputs['gas_rate']:.2f}/therm"],
     ]
     
+    # Add building-type specific inputs
     if building_type == 'School' and 'school_type' in inputs:
-        project_data.insert(1, ['School Type:', inputs['school_type']])
+        input_data.insert(2, ['School Type', inputs['school_type']])
     elif building_type == 'Office' and 'operating_hours' in inputs:
-        project_data.append(['Operating Hours:', f"{inputs['operating_hours']:,} hrs/year"])
+        input_data.append(['Operating Hours', f"{inputs['operating_hours']:,} hrs/year"])
     elif building_type == 'Hotel' and 'occupancy_percent' in inputs:
-        project_data.append(['Occupancy:', f"{inputs['occupancy_percent']}%"])
+        input_data.append(['Average Occupancy', f"{inputs['occupancy_percent']}%"])
     
-    project_table = Table(project_data, colWidths=[2.5*inch, 3.5*inch])
-    project_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E8F4F8')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
-    ]))
-    story.append(project_table)
-    story.append(Spacer(1, 0.3*inch))
-    
-    # Energy Savings Results
-    story.append(Paragraph("Annual Energy Savings", heading_style))
-    savings_data = [
-        ['Metric', 'Value'],
-        ['Electric Energy Savings', f"{results['electric_savings_kwh']:,.0f} kWh/year"],
-        ['Natural Gas Savings', f"{results['gas_savings_therms']:,.0f} therms/year"],
-        ['Electric Cost Savings', f"${results['electric_cost_savings']:,.2f}/year"],
-        ['Gas Cost Savings', f"${results['gas_cost_savings']:,.2f}/year"],
-        ['Total Annual Cost Savings', f"${results['total_cost_savings']:,.2f}/year"],
-    ]
-    
-    savings_table = Table(savings_data, colWidths=[3*inch, 3*inch])
-    savings_table.setStyle(TableStyle([
+    input_table = Table(input_data, colWidths=[2.5*inch, 3.5*inch])
+    input_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+    ]))
+    story.append(input_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # SECTION B: ENERGY SAVINGS SUMMARY
+    story.append(Paragraph("B. Energy Savings Summary", heading_style))
+    
+    # Generate Waterfall Chart
+    baseline_eui = results['baseline_eui']
+    savings_eui = results['total_savings_kbtu_sf']
+    new_eui = results['new_eui']
+    
+    fig = go.Figure(go.Waterfall(
+        orientation = "v",
+        measure = ["absolute", "relative", "total"],
+        x = ["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert", "EUI After<br>Winsert"],
+        y = [baseline_eui, -savings_eui, new_eui],
+        text = [f"{baseline_eui:.1f}", f"−{savings_eui:.1f}", f"{new_eui:.1f}"],
+        textposition = ["inside", "outside", "inside"],
+        textfont = dict(size=14, color="white"),
+        increasing = {"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+        decreasing = {"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+        totals = {"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+        connector = {"line":{"color":"rgb(100, 100, 100)", "width":1}},
+        width = [0.5, 0.5, 0.5]
+    ))
+    
+    fig.update_layout(
+        title="Energy Use Intensity (EUI) Reduction",
+        height=400,
+        width=600,
+        showlegend=False,
+        yaxis=dict(title='kBtu/SF-yr', title_font=dict(size=12), gridcolor='#E0E0E0', rangemode='tozero'),
+        xaxis=dict(title_font=dict(size=11)),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(t=60, b=80, l=60, r=20)
+    )
+    
+    # Convert plotly figure to image
+    try:
+        img_bytes = pio.to_image(fig, format='png', width=600, height=400)
+        img_buffer = BytesIO(img_bytes)
+        chart_img = Image(img_buffer, width=5.5*inch, height=3.5*inch)
+        chart_img.hAlign = 'CENTER'
+        story.append(chart_img)
+        story.append(Spacer(1, 0.2*inch))
+    except Exception as e:
+        # If chart generation fails, add a note
+        story.append(Paragraph(f"Note: Chart visualization unavailable. See table below for EUI data.", body_style))
+        story.append(Spacer(1, 0.1*inch))
+    
+    # EUI Waterfall Data Table
+    eui_waterfall_data = [
+        ['EUI Performance', 'Value (kBtu/SF-year)'],
+        ['Baseline EUI (Before Winsert)', f"{results['baseline_eui']:.1f}"],
+        ['EUI Savings with Winsert', f"{results['total_savings_kbtu_sf']:.1f}"],
+        ['New EUI (After Winsert)', f"{results['new_eui']:.1f}"],
+        ['Percentage EUI Reduction', f"{results['percent_eui_savings']:.1f}%"],
+    ]
+    
+    eui_table = Table(eui_waterfall_data, colWidths=[3*inch, 3*inch])
+    eui_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#E8F4F8')),
+    ]))
+    story.append(eui_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Energy Savings Details
+    energy_savings_data = [
+        ['Energy Type', 'Annual Savings'],
+        ['Electric Energy', f"{results['electric_savings_kwh']:,.0f} kWh/year"],
+        ['Natural Gas', f"{results['gas_savings_therms']:,.0f} therms/year"],
+    ]
+    
+    energy_table = Table(energy_savings_data, colWidths=[3*inch, 3*inch])
+    energy_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+    ]))
+    story.append(energy_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # SECTION C: UTILITY COST SAVINGS
+    story.append(Paragraph("C. Utility Cost Savings", heading_style))
+    
+    cost_savings_data = [
+        ['Utility Type', 'Annual Cost Savings'],
+        ['Electric Cost Savings', f"${results['electric_cost_savings']:,.2f}/year"],
+        ['Natural Gas Cost Savings', f"${results['gas_cost_savings']:,.2f}/year"],
+        ['Total Annual Cost Savings', f"${results['total_cost_savings']:,.2f}/year"],
+    ]
+    
+    cost_table = Table(cost_savings_data, colWidths=[3*inch, 3*inch])
+    cost_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
@@ -805,30 +920,7 @@ def generate_pdf_report(inputs, results, building_type):
         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E8F4F8')),
     ]))
-    story.append(savings_table)
-    story.append(Spacer(1, 0.3*inch))
-    
-    # EUI Performance
-    story.append(Paragraph("Energy Use Intensity (EUI) Performance", heading_style))
-    eui_data = [
-        ['Baseline EUI', f"{results['baseline_eui']:.1f} kBtu/SF-year"],
-        ['EUI After Winsert Installation', f"{results['new_eui']:.1f} kBtu/SF-year"],
-        ['EUI Reduction', f"{results['total_savings_kbtu_sf']:.1f} kBtu/SF-year"],
-        ['Percentage Improvement', f"{results['percent_eui_savings']:.1f}%"],
-    ]
-    
-    eui_table = Table(eui_data, colWidths=[3*inch, 3*inch])
-    eui_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E8F4F8')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
-    ]))
-    story.append(eui_table)
+    story.append(cost_table)
     story.append(Spacer(1, 0.3*inch))
     
     # Climate Data
@@ -893,7 +985,7 @@ if REGRESSION_COEFFICIENTS.empty:
     st.error("⚠️ Unable to load regression coefficients.")
     st.stop()
 
-# Progress bar logic - only show for steps 1-3, not for step 0, 0.5, or 4
+# Progress bar logic - only show for steps 1-3
 if st.session_state.step >= 1 and st.session_state.step <= 3:
     display_step = int(st.session_state.step)
     progress = display_step / 3
