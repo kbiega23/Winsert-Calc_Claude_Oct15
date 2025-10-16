@@ -1,7 +1,6 @@
 """
 CSW Savings Calculator - Streamlit Web App
 MULTI-BUILDING VERSION - Supports Office, Hotel, and School buildings
-Uses merged regression_coefficients.csv with all building types
 """
 
 import streamlit as st
@@ -20,7 +19,7 @@ st.set_page_config(
 )
 
 if 'step' not in st.session_state:
-    st.session_state.step = 0  # Start at building type selection
+    st.session_state.step = 0
 
 # ============================================================================
 # DATA: HVAC AND INPUT OPTIONS
@@ -44,12 +43,14 @@ HOTEL_HVAC_SYSTEMS = [
 
 # School HVAC Systems
 SCHOOL_HVAC_SYSTEMS = [
-    'Central Ducted VAV',
     'Fan Coil Unit',
+    'Variable Air Volume',
     'Other'
 ]
 
+# School Types
 SCHOOL_TYPES = ['Primary School', 'Secondary School']
+SCHOOL_TYPE_MAPPING = {'Primary School': 'PS', 'Secondary School': 'SS'}
 
 HEATING_FUELS = ['Electric', 'Natural Gas', 'None']
 COOLING_OPTIONS = ['Yes', 'No']
@@ -93,9 +94,8 @@ def load_weather_data():
 
 @st.cache_data
 def load_regression_coefficients():
-    """Load merged regression coefficients from CSV (Office + Hotel + School)"""
+    """Load regression coefficients from CSV (Office + Hotel + School)"""
     try:
-        # CRITICAL: keep_default_na=False prevents pandas from converting 'N/A' string to NaN
         df = pd.read_csv('regression_coefficients.csv', keep_default_na=False, na_values=[''])
         return df
     except FileNotFoundError:
@@ -150,8 +150,7 @@ def build_lookup_config_office(inputs, hours):
         'hvac_fuel': hvac_fuel,
         'fuel': fuel,
         'occupancy': '',
-        'hours': hours,
-        'school_type': ''
+        'hours': hours
     }
 
 def build_lookup_config_hotel(inputs, occupancy_level):
@@ -178,20 +177,16 @@ def build_lookup_config_hotel(inputs, occupancy_level):
         'hvac_fuel': hvac_fuel,
         'fuel': fuel,
         'occupancy': occupancy_level,
-        'hours': '',
-        'school_type': ''
+        'hours': ''
     }
 
 def build_baseline_config_hotel(inputs, occupancy_level):
-    """Build configuration for finding Hotel BASELINE row - uses different logic than CSW lookup"""
+    """Build configuration for finding Hotel BASELINE row"""
     base = 'Single' if inputs['existing_window'] == 'Single pane' else 'Double'
     
     hvac_system = inputs['hvac_system']
     heating_fuel = inputs['heating_fuel']
     
-    # Determine size and hvac_fuel for baseline lookup
-    # Small hotel (PTAC/PTHP with Electric/None) uses PTAC/PTHP baseline
-    # Large hotel uses Gas or Electric baseline based on heating fuel
     if hvac_system == 'PTAC':
         size = 'Small'
         hvac_fuel_baseline = 'PTAC'
@@ -199,7 +194,6 @@ def build_baseline_config_hotel(inputs, occupancy_level):
         size = 'Small'
         hvac_fuel_baseline = 'PTHP'
     else:
-        # Large hotel (Fan Coil, Other)
         size = 'Large'
         hvac_fuel_baseline = 'Gas' if heating_fuel == 'Natural Gas' else 'Electric'
     
@@ -208,32 +202,37 @@ def build_baseline_config_hotel(inputs, occupancy_level):
         'size': size,
         'hvac_fuel': hvac_fuel_baseline,
         'occupancy': occupancy_level,
-        'hours': '',
-        'school_type': ''
+        'hours': ''
     }
 
 def build_lookup_config_school(inputs):
-    """Build configuration for finding School regression row"""
+    """Build configuration for finding School CSW regression row"""
     base = 'Single' if inputs['existing_window'] == 'Single pane' else 'Double'
     csw_type = CSW_TYPE_MAPPING.get(inputs['csw_type'], inputs['csw_type'])
     
-    school_type = 'SS' if inputs['school_type'] == 'Secondary School' else 'PS'
-    
+    # Map user-friendly HVAC names to CSV values
     hvac_system = inputs['hvac_system']
-    hvac_fuel = 'VAV' if hvac_system == 'Central Ducted VAV' else 'FCU'
+    if hvac_system == 'Fan Coil Unit':
+        hvac_fuel = 'FCU'
+    elif hvac_system == 'Variable Air Volume':
+        hvac_fuel = 'VAV'
+    else:  # Other
+        hvac_fuel = 'VAV'  # Default to VAV
+    
+    # Get school type
+    school_type = SCHOOL_TYPE_MAPPING.get(inputs['school_type'], inputs['school_type'])
     
     heating_fuel = inputs['heating_fuel']
-    fuel = 'Elec' if heating_fuel in ['Electric', 'None'] else 'Gas'
+    fuel = 'Electric' if heating_fuel == 'None' else heating_fuel
     
     return {
         'base': base,
         'csw': csw_type,
-        'size': '',
+        'school_type': school_type,
         'hvac_fuel': hvac_fuel,
         'fuel': fuel,
         'occupancy': '',
-        'hours': '',
-        'school_type': school_type
+        'hours': ''
     }
 
 def find_regression_row(config, building_type):
@@ -242,28 +241,26 @@ def find_regression_row(config, building_type):
         return None
     
     if building_type == 'Office':
-        # Check occupancy column - it should be empty string or NaN for Office
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == config['csw']) &
             (REGRESSION_COEFFICIENTS['size'] == config['size']) &
             (REGRESSION_COEFFICIENTS['hvac_fuel'] == config['hvac_fuel']) &
             (REGRESSION_COEFFICIENTS['hours'] == config['hours']) &
-            ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna())) &
-            ((REGRESSION_COEFFICIENTS['school_type'] == '') | (REGRESSION_COEFFICIENTS['school_type'].isna()))
+            ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna()))
         )
         if pd.notna(config['fuel']) and config['fuel'] != '':
             mask = mask & (REGRESSION_COEFFICIENTS['fuel'] == config['fuel'])
         
         result = REGRESSION_COEFFICIENTS[mask]
+        
     elif building_type == 'Hotel':
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == config['csw']) &
             (REGRESSION_COEFFICIENTS['size'] == config['size']) &
             (REGRESSION_COEFFICIENTS['occupancy'] == config['occupancy']) &
-            ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna())) &
-            ((REGRESSION_COEFFICIENTS['school_type'] == '') | (REGRESSION_COEFFICIENTS['school_type'].isna()))
+            ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna()))
         )
         if config['hvac_fuel']:
             mask = mask & (REGRESSION_COEFFICIENTS['hvac_fuel'] == config['hvac_fuel'])
@@ -273,14 +270,14 @@ def find_regression_row(config, building_type):
             mask = mask & (REGRESSION_COEFFICIENTS['fuel'] == config['fuel'])
     
         result = REGRESSION_COEFFICIENTS[mask]
-    else:  # School
+        
+    elif building_type == 'School':
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == config['csw']) &
+            (REGRESSION_COEFFICIENTS['school_type'] == config['school_type']) &
             (REGRESSION_COEFFICIENTS['hvac_fuel'] == config['hvac_fuel']) &
             (REGRESSION_COEFFICIENTS['fuel'] == config['fuel']) &
-            (REGRESSION_COEFFICIENTS['school_type'] == config['school_type']) &
-            ((REGRESSION_COEFFICIENTS['size'] == '') | (REGRESSION_COEFFICIENTS['size'].isna())) &
             ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna())) &
             ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna()))
         )
@@ -297,20 +294,17 @@ def find_baseline_eui_row(config, building_type):
     if building_type == 'Office':
         fuel_type = 'Gas' if config['fuel'] == 'Natural Gas' else 'Electric'
         
-        # Office baseline: csw='N/A', occupancy is NaN or empty, hours must match
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == 'N/A') &
             (REGRESSION_COEFFICIENTS['size'] == config['size']) &
             (REGRESSION_COEFFICIENTS['hvac_fuel'] == fuel_type) &
             (REGRESSION_COEFFICIENTS['hours'] == config['hours']) &
-            ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna())) &
-            ((REGRESSION_COEFFICIENTS['school_type'] == '') | (REGRESSION_COEFFICIENTS['school_type'].isna()))
+            ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna()))
         )
         
         result = REGRESSION_COEFFICIENTS[mask]
         
-        # If no exact match, try with N/A fuel
         if result.empty:
             mask = (
                 (REGRESSION_COEFFICIENTS['base'] == config['base']) &
@@ -319,33 +313,29 @@ def find_baseline_eui_row(config, building_type):
                 (REGRESSION_COEFFICIENTS['hvac_fuel'] == fuel_type) &
                 (REGRESSION_COEFFICIENTS['fuel'] == 'N/A') &
                 (REGRESSION_COEFFICIENTS['hours'] == config['hours']) &
-                ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna())) &
-                ((REGRESSION_COEFFICIENTS['school_type'] == '') | (REGRESSION_COEFFICIENTS['school_type'].isna()))
+                ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna()))
             )
             result = REGRESSION_COEFFICIENTS[mask]
     
     elif building_type == 'Hotel':
-        # Hotel baseline lookup uses the hvac_fuel from the baseline config
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == 'N/A') &
             (REGRESSION_COEFFICIENTS['size'] == config['size']) &
             (REGRESSION_COEFFICIENTS['hvac_fuel'] == config['hvac_fuel']) &
             (REGRESSION_COEFFICIENTS['occupancy'] == config['occupancy']) &
-            ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna())) &
-            ((REGRESSION_COEFFICIENTS['school_type'] == '') | (REGRESSION_COEFFICIENTS['school_type'].isna()))
+            ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna()))
         )
         
         result = REGRESSION_COEFFICIENTS[mask]
-    
-    else:  # School
+        
+    elif building_type == 'School':
         mask = (
             (REGRESSION_COEFFICIENTS['base'] == config['base']) &
             (REGRESSION_COEFFICIENTS['csw'] == 'N/A') &
+            (REGRESSION_COEFFICIENTS['school_type'] == config['school_type']) &
             (REGRESSION_COEFFICIENTS['hvac_fuel'] == config['hvac_fuel']) &
             (REGRESSION_COEFFICIENTS['fuel'] == config['fuel']) &
-            (REGRESSION_COEFFICIENTS['school_type'] == config['school_type']) &
-            ((REGRESSION_COEFFICIENTS['size'] == '') | (REGRESSION_COEFFICIENTS['size'].isna())) &
             ((REGRESSION_COEFFICIENTS['occupancy'] == '') | (REGRESSION_COEFFICIENTS['occupancy'].isna())) &
             ((REGRESSION_COEFFICIENTS['hours'] == '') | (REGRESSION_COEFFICIENTS['hours'].isna()))
         )
@@ -388,7 +378,6 @@ def calculate_savings_office(inputs):
     hdd = inputs.get('hdd', 0)
     cdd = inputs.get('cdd', 0)
     
-    # Determine operating hours brackets
     hours_high = 8760 if operating_hours > 2912 else 2912
     hours_low = 2912 if hours_high == 8760 else 2080
     
@@ -402,7 +391,6 @@ def calculate_savings_office(inputs):
         st.error(f"⚠️ Could not find Office regression coefficients")
         return None
     
-    # Calculate heating savings
     if heating_fuel == 'Natural Gas':
         heating_high = calculate_from_regression(row_high, hdd, is_heating=True)
         heating_low = calculate_from_regression(row_low, hdd, is_heating=True)
@@ -413,11 +401,9 @@ def calculate_savings_office(inputs):
         electric_heating_low = calculate_from_regression(row_low, hdd, is_heating=True)
         gas_savings_high, gas_savings_low = 0, 0
     
-    # Calculate cooling savings
     cooling_high = calculate_from_regression(row_high, cdd, is_heating=False)
     cooling_low = calculate_from_regression(row_low, cdd, is_heating=False)
     
-    # Interpolate
     if heating_fuel == 'Natural Gas':
         c31 = 0
         c33 = interpolate_values(operating_hours, gas_savings_high, gas_savings_low, hours_high, hours_low)
@@ -427,7 +413,6 @@ def calculate_savings_office(inputs):
     
     c32_base = interpolate_values(operating_hours, cooling_high, cooling_low, hours_high, hours_low)
     
-    # Apply cooling multiplier
     if cooling_installed == "Yes":
         w24 = 1.0
     else:
@@ -435,7 +420,6 @@ def calculate_savings_office(inputs):
     
     c32 = c32_base * w24
     
-    # Find baseline EUI
     baseline_row_high = find_baseline_eui_row(config_high, 'Office')
     baseline_row_low = find_baseline_eui_row(config_low, 'Office')
     
@@ -447,7 +431,6 @@ def calculate_savings_office(inputs):
     baseline_eui_low = calculate_from_regression(baseline_row_low, hdd, is_heating=True)
     baseline_eui = interpolate_values(operating_hours, baseline_eui_high, baseline_eui_low, hours_high, hours_low)
     
-    # Calculate final savings
     electric_savings_kwh = (c31 + c32) * csw_area
     gas_savings_therms = c33 * csw_area
     electric_cost_savings = electric_savings_kwh * electric_rate
@@ -489,11 +472,9 @@ def calculate_savings_hotel(inputs):
     hdd = inputs.get('hdd', 0)
     cdd = inputs.get('cdd', 0)
     
-    # Hotel uses occupancy interpolation (33% = Low, 100% = High)
     occupancy_high = 100
     occupancy_low = 33
     
-    # CSW savings lookup - uses standard config
     config_high = build_lookup_config_hotel(inputs, 'High')
     config_low = build_lookup_config_hotel(inputs, 'Low')
     
@@ -504,7 +485,6 @@ def calculate_savings_hotel(inputs):
         st.error(f"⚠️ Could not find Hotel regression coefficients")
         return None
     
-    # Calculate heating savings
     if heating_fuel == 'Natural Gas':
         heating_high = calculate_from_regression(row_high, hdd, is_heating=True)
         heating_low = calculate_from_regression(row_low, hdd, is_heating=True)
@@ -515,11 +495,9 @@ def calculate_savings_hotel(inputs):
         electric_heating_low = calculate_from_regression(row_low, hdd, is_heating=True)
         gas_savings_high, gas_savings_low = 0, 0
     
-    # Calculate cooling savings
     cooling_high = calculate_from_regression(row_high, cdd, is_heating=False)
     cooling_low = calculate_from_regression(row_low, cdd, is_heating=False)
     
-    # Interpolate based on occupancy
     if heating_fuel == 'Natural Gas':
         c31 = 0
         c33 = interpolate_values(occupancy_percent, gas_savings_high, gas_savings_low, occupancy_high, occupancy_low)
@@ -528,11 +506,8 @@ def calculate_savings_hotel(inputs):
         c33 = 0
     
     c32_base = interpolate_values(occupancy_percent, cooling_high, cooling_low, occupancy_high, occupancy_low)
-    
-    # Hotels always apply cooling (no multiplier adjustment needed)
     c32 = c32_base if cooling_installed == "Yes" else 0
     
-    # Baseline lookup - uses separate baseline config
     baseline_config_high = build_baseline_config_hotel(inputs, 'High')
     baseline_config_low = build_baseline_config_hotel(inputs, 'Low')
     
@@ -546,6 +521,81 @@ def calculate_savings_hotel(inputs):
     baseline_eui_high = calculate_from_regression(baseline_row_high, hdd, is_heating=True)
     baseline_eui_low = calculate_from_regression(baseline_row_low, hdd, is_heating=True)
     baseline_eui = interpolate_values(occupancy_percent, baseline_eui_high, baseline_eui_low, occupancy_high, occupancy_low)
+    
+    electric_savings_kwh = (c31 + c32) * csw_area
+    gas_savings_therms = c33 * csw_area
+    electric_cost_savings = electric_savings_kwh * electric_rate
+    gas_cost_savings = gas_savings_therms * gas_rate
+    total_cost_savings = electric_cost_savings + gas_cost_savings
+    total_savings_kbtu_sf = (electric_savings_kwh * 3.413 + gas_savings_therms * 100) / building_area
+    new_eui = baseline_eui - total_savings_kbtu_sf
+    percent_eui_savings = (total_savings_kbtu_sf / baseline_eui * 100) if baseline_eui > 0 else 0
+    wwr = calculate_wwr(csw_area, building_area, num_floors) if csw_area > 0 and num_floors > 0 else None
+    
+    return {
+        'electric_savings_kwh': electric_savings_kwh,
+        'gas_savings_therms': gas_savings_therms,
+        'electric_cost_savings': electric_cost_savings,
+        'gas_cost_savings': gas_cost_savings,
+        'total_cost_savings': total_cost_savings,
+        'total_savings_kbtu_sf': total_savings_kbtu_sf,
+        'baseline_eui': baseline_eui,
+        'new_eui': new_eui,
+        'percent_eui_savings': percent_eui_savings,
+        'wwr': wwr,
+        'hdd': hdd,
+        'cdd': cdd,
+        'heating_per_sf': c31,
+        'cooling_per_sf': c32,
+        'gas_per_sf': c33
+    }
+
+def calculate_savings_school(inputs):
+    """Calculate savings for School buildings"""
+    building_area = inputs['building_area']
+    csw_area = inputs['csw_area']
+    num_floors = inputs['num_floors']
+    electric_rate = inputs['electric_rate']
+    gas_rate = inputs['gas_rate']
+    cooling_installed = inputs['cooling_installed']
+    heating_fuel = inputs['heating_fuel']
+    hdd = inputs.get('hdd', 0)
+    cdd = inputs.get('cdd', 0)
+    
+    # Schools don't interpolate - direct lookup
+    config = build_lookup_config_school(inputs)
+    
+    row = find_regression_row(config, 'School')
+    
+    if row is None:
+        st.error(f"⚠️ Could not find School regression coefficients")
+        return None
+    
+    # Calculate heating savings
+    if heating_fuel == 'Natural Gas':
+        heating_savings = calculate_from_regression(row, hdd, is_heating=True)
+        gas_savings = heating_savings
+        electric_heating = 0
+    else:
+        electric_heating = calculate_from_regression(row, hdd, is_heating=True)
+        gas_savings = 0
+    
+    # Calculate cooling savings
+    cooling_savings = calculate_from_regression(row, cdd, is_heating=False)
+    
+    # Apply cooling
+    c31 = electric_heating
+    c32 = cooling_savings if cooling_installed == "Yes" else 0
+    c33 = gas_savings
+    
+    # Find baseline EUI
+    baseline_row = find_baseline_eui_row(config, 'School')
+    
+    if baseline_row is None:
+        st.error("⚠️ Could not find School baseline EUI coefficients")
+        return None
+    
+    baseline_eui = calculate_from_regression(baseline_row, hdd, is_heating=True)
     
     # Calculate final savings
     electric_savings_kwh = (c31 + c32) * csw_area
@@ -576,90 +626,6 @@ def calculate_savings_hotel(inputs):
         'gas_per_sf': c33
     }
 
-def calculate_savings_school(inputs):
-    """Calculate savings for School buildings - NO INTERPOLATION, direct lookup only"""
-    building_area = inputs['building_area']
-    csw_area = inputs['csw_area']
-    num_floors = inputs['num_floors']
-    electric_rate = inputs['electric_rate']
-    gas_rate = inputs['gas_rate']
-    cooling_installed = inputs['cooling_installed']
-    heating_fuel = inputs['heating_fuel']
-    hdd = inputs.get('hdd', 0)
-    cdd = inputs.get('cdd', 0)
-    
-    # Build config for direct lookup (no interpolation for schools)
-    config = build_lookup_config_school(inputs)
-    
-    # Find CSW regression row
-    row = find_regression_row(config, 'School')
-    
-    if row is None:
-        st.error(f"⚠️ Could not find School regression coefficients")
-        return None
-    
-    # Calculate heating and cooling savings using regression formula
-    heating_savings = calculate_from_regression(row, hdd, is_heating=True)
-    cooling_savings = calculate_from_regression(row, cdd, is_heating=False)
-    
-    # Determine electric vs gas savings based on heating fuel
-    if heating_fuel == 'Natural Gas':
-        electric_heating_per_sf = 0
-        gas_per_sf = heating_savings
-    else:  # Electric or None
-        electric_heating_per_sf = heating_savings
-        gas_per_sf = 0
-    
-    # Apply cooling multiplier if cooling not installed
-    if cooling_installed == "Yes":
-        cooling_multiplier = 1.0
-    else:
-        # Get cooling multiplier from regression row if available
-        cooling_multiplier = row.get('cool_mult_no_cooling', 1.0) if pd.notna(row.get('cool_mult_no_cooling')) else 1.0
-    
-    cooling_per_sf = cooling_savings * cooling_multiplier
-    
-    # Total per SF values
-    total_electric_per_sf = electric_heating_per_sf + cooling_per_sf
-    
-    # Find baseline EUI
-    baseline_row = find_baseline_eui_row(config, 'School')
-    
-    if baseline_row is None:
-        st.error("⚠️ Could not find School baseline EUI coefficients")
-        return None
-    
-    baseline_eui = calculate_from_regression(baseline_row, hdd, is_heating=True)
-    
-    # Calculate final savings
-    electric_savings_kwh = total_electric_per_sf * csw_area
-    gas_savings_therms = gas_per_sf * csw_area
-    electric_cost_savings = electric_savings_kwh * electric_rate
-    gas_cost_savings = gas_savings_therms * gas_rate
-    total_cost_savings = electric_cost_savings + gas_cost_savings
-    total_savings_kbtu_sf = (electric_savings_kwh * 3.413 + gas_savings_therms * 100) / building_area
-    new_eui = baseline_eui - total_savings_kbtu_sf
-    percent_eui_savings = (total_savings_kbtu_sf / baseline_eui * 100) if baseline_eui > 0 else 0
-    wwr = calculate_wwr(csw_area, building_area, num_floors) if csw_area > 0 and num_floors > 0 else None
-    
-    return {
-        'electric_savings_kwh': electric_savings_kwh,
-        'gas_savings_therms': gas_savings_therms,
-        'electric_cost_savings': electric_cost_savings,
-        'gas_cost_savings': gas_cost_savings,
-        'total_cost_savings': total_cost_savings,
-        'total_savings_kbtu_sf': total_savings_kbtu_sf,
-        'baseline_eui': baseline_eui,
-        'new_eui': new_eui,
-        'percent_eui_savings': percent_eui_savings,
-        'wwr': wwr,
-        'hdd': hdd,
-        'cdd': cdd,
-        'heating_per_sf': electric_heating_per_sf,
-        'cooling_per_sf': cooling_per_sf,
-        'gas_per_sf': gas_per_sf
-    }
-
 # ============================================================================
 # UI
 # ============================================================================
@@ -672,10 +638,6 @@ with col_logo:
 with col_title:
     st.markdown("<h1 style='margin-bottom: 0;'>Winsert Savings Calculator</h1>", unsafe_allow_html=True)
     building_type_display = st.session_state.get('building_type', 'Select Building Type')
-    if building_type_display == 'School':
-        school_type = st.session_state.get('school_type', '')
-        if school_type:
-            building_type_display = f"School - {school_type}"
     st.markdown(f"<p style='font-size: 1.2em; color: #666; margin-top: 0;'>{building_type_display}</p>", unsafe_allow_html=True)
 
 st.markdown('---')
@@ -691,12 +653,7 @@ if REGRESSION_COEFFICIENTS.empty:
 
 # Calculate total steps
 total_steps = 5
-if st.session_state.step > 0 and st.session_state.step < 1:
-    # School type selection sub-step
-    progress = 0.1
-    st.progress(progress)
-    st.write(f'Step 1 of {total_steps}')
-elif st.session_state.step > 0:
+if st.session_state.step > 0:
     progress = st.session_state.step / total_steps
     st.progress(progress)
     st.write(f'Step {st.session_state.step} of {total_steps}')
@@ -722,31 +679,8 @@ if st.session_state.step == 0:
     with col3:
         if st.button('🏫 School', use_container_width=True, type='primary'):
             st.session_state.building_type = 'School'
-            st.session_state.step = 0.5
-            st.rerun()
-
-# STEP 0.5: School Type Selection
-elif st.session_state.step == 0.5:
-    st.header('Select School Type')
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button('🎒 Primary School', use_container_width=True, type='primary'):
-            st.session_state.school_type = 'Primary School'
             st.session_state.step = 1
             st.rerun()
-    
-    with col2:
-        if st.button('🎓 Secondary School', use_container_width=True, type='primary'):
-            st.session_state.school_type = 'Secondary School'
-            st.session_state.step = 1
-            st.rerun()
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button('← Back', type='secondary'):
-        st.session_state.step = 0
-        st.rerun()
 
 # STEP 1: Location
 elif st.session_state.step == 1:
@@ -797,10 +731,7 @@ elif st.session_state.step == 1:
     col_back, col_next = st.columns([1, 1])
     with col_back:
         if st.button('← Back'):
-            if st.session_state.get('building_type') == 'School':
-                st.session_state.step = 0.5
-            else:
-                st.session_state.step = 0
+            st.session_state.step = 0
             st.rerun()
     with col_next:
         if st.button('Next →', type='primary'):
@@ -820,8 +751,8 @@ elif st.session_state.step == 2:
             min_area, max_area = 15000, 250000
             area_help = "Hotel building area must be between 15,000 and 250,000 square feet"
         elif building_type == 'School':
-            min_area, max_area = 25000, 350000
-            area_help = "School building area must be between 25,000 and 350,000 square feet"
+            min_area, max_area = 15000, 500000
+            area_help = "School building area must be between 15,000 and 500,000 square feet"
         else:  # Office
             min_area, max_area = 15000, 500000
             area_help = "Office building area must be between 15,000 and 500,000 square feet"
@@ -880,7 +811,6 @@ elif st.session_state.step == 2:
                 unsafe_allow_html=True
             )
             
-            # WWR validation
             if wwr > 1.0:
                 st.error("⚠️ WWR is larger than physically possible. Please update.")
                 st.session_state.wwr_error = True
@@ -923,7 +853,13 @@ elif st.session_state.step == 3:
         elif building_type == 'Hotel':
             occupancy_percent = st.slider('Average Occupancy (%)', min_value=33, max_value=100, value=st.session_state.get('occupancy_percent', 70), step=1, key='occupancy_input', help='Between 33% and 100%')
             st.session_state.occupancy_percent = occupancy_percent
-        # School doesn't need operating hours or occupancy
+        elif building_type == 'School':
+            # School type selection
+            school_type_idx = 0
+            if 'school_type' in st.session_state and st.session_state.school_type in SCHOOL_TYPES:
+                school_type_idx = SCHOOL_TYPES.index(st.session_state.school_type)
+            school_type = st.selectbox('School Type', options=SCHOOL_TYPES, index=school_type_idx, key='school_type_input')
+            st.session_state.school_type = school_type
     
     with col2:
         if building_type == 'Office':
@@ -944,7 +880,6 @@ elif st.session_state.step == 3:
             heating_fuels_list = ['Electric']
             fuel_idx = 0
         elif building_type == 'Hotel' and hvac_system in ['PTHP', 'PTAC']:
-            # PTAC and PTHP systems are packaged terminal units - only electric heating
             heating_fuels_list = ['Electric', 'None']
             fuel_idx = 0
             if 'heating_fuel' in st.session_state and st.session_state.heating_fuel in heating_fuels_list:
@@ -1005,7 +940,7 @@ elif st.session_state.step == 4:
         inputs['occupancy_percent'] = st.session_state.get('occupancy_percent', 70)
         results = calculate_savings_hotel(inputs)
     else:  # School
-        inputs['school_type'] = st.session_state.get('school_type', 'Secondary School')
+        inputs['school_type'] = st.session_state.get('school_type', 'Primary School')
         results = calculate_savings_school(inputs)
     
     if results:
@@ -1139,10 +1074,9 @@ elif st.session_state.step == 4:
                 st.write(f"• Heating Degree Days: {results['hdd']:,.0f}")
                 st.write(f"• Cooling Degree Days: {results['cdd']:,.0f}")
             with detail_col4:
+                st.write(f"• Building Type: {building_type}")
                 if building_type == 'School':
-                    st.write(f"• Building Type: {building_type} - {inputs['school_type']}")
-                else:
-                    st.write(f"• Building Type: {building_type}")
+                    st.write(f"• School Type: {inputs['school_type']}")
                 st.write(f"• Building Area: {inputs['building_area']:,} SF")
                 st.write(f"• Secondary Window Area: {inputs['csw_area']:,} SF")
                 if results['wwr']:
@@ -1169,16 +1103,10 @@ with st.sidebar:
         
         st.markdown('**🏢 Building Envelope**')
         
-        # Set building area limits based on building type
         if building_type == 'Hotel':
             min_area, max_area = 15000, 250000
-            area_help = "Hotel building area must be between 15,000 and 250,000 square feet"
-        elif building_type == 'School':
-            min_area, max_area = 25000, 350000
-            area_help = "School building area must be between 25,000 and 350,000 square feet"
-        else:  # Office
+        else:
             min_area, max_area = 15000, 500000
-            area_help = "Office building area must be between 15,000 and 500,000 square feet"
         
         building_area = st.number_input(
             'Building Area (SF)', 
@@ -1186,8 +1114,7 @@ with st.sidebar:
             max_value=max_area, 
             value=min(max(st.session_state.get('building_area', 75000), min_area), max_area), 
             step=1000, 
-            key='sidebar_building_area',
-            help=area_help
+            key='sidebar_building_area'
         )
         if building_area != st.session_state.get('building_area'):
             st.session_state.building_area = building_area
@@ -1198,8 +1125,7 @@ with st.sidebar:
             min_value=1, 
             max_value=100, 
             value=st.session_state.get('num_floors', 5), 
-            key='sidebar_num_floors',
-            help="Number of floors must be between 1 and 100"
+            key='sidebar_num_floors'
         )
         if num_floors != st.session_state.get('num_floors'):
             st.session_state.num_floors = num_floors
@@ -1210,7 +1136,6 @@ with st.sidebar:
             st.session_state.existing_window = existing_window
             st.rerun()
         
-        # Product type logic - limit to Winsert Lite if Double pane existing
         if existing_window == 'Double pane':
             csw_types_list = ['Winsert Lite']
             csw_type_idx = 0
@@ -1247,21 +1172,24 @@ with st.sidebar:
             if occupancy != st.session_state.get('occupancy_percent'):
                 st.session_state.occupancy_percent = occupancy
                 st.rerun()
-        # School doesn't need operating hours or occupancy
+        elif building_type == 'School':
+            school_type = st.selectbox('School Type', options=SCHOOL_TYPES, index=SCHOOL_TYPES.index(st.session_state.get('school_type', SCHOOL_TYPES[0])), key='sidebar_school_type')
+            if school_type != st.session_state.get('school_type'):
+                st.session_state.school_type = school_type
+                st.rerun()
         
         if building_type == 'Office':
             hvac_systems = OFFICE_HVAC_SYSTEMS
         elif building_type == 'Hotel':
             hvac_systems = HOTEL_HVAC_SYSTEMS
-        else:  # School
+        else:
             hvac_systems = SCHOOL_HVAC_SYSTEMS
-        
+            
         hvac_system = st.selectbox('HVAC System', options=hvac_systems, index=hvac_systems.index(st.session_state.get('hvac_system', hvac_systems[0])), key='sidebar_hvac_system')
         if hvac_system != st.session_state.get('hvac_system'):
             st.session_state.hvac_system = hvac_system
             st.rerun()
         
-        # Heating fuel logic - apply same rules as main page
         if building_type == 'Office' and hvac_system == 'Packaged VAV with electric reheat':
             heating_fuels_list = ['Electric']
             fuel_idx = 0
@@ -1299,10 +1227,6 @@ with st.sidebar:
         st.markdown('### 📝 Summary')
         if st.session_state.step > 0:
             building_type = st.session_state.get('building_type', 'Not selected')
-            if building_type == 'School':
-                school_type = st.session_state.get('school_type', '')
-                if school_type:
-                    building_type = f"School - {school_type}"
             st.markdown(f"**Building Type:** {building_type}")
         if st.session_state.step > 1:
             st.markdown(f"**Location:** {st.session_state.get('city', 'N/A')}, {st.session_state.get('state', 'N/A')}")
@@ -1311,11 +1235,12 @@ with st.sidebar:
             st.markdown(f"**Windows:** {st.session_state.get('existing_window', 'N/A')} → {st.session_state.get('csw_type', 'N/A')}")
             st.markdown(f"**Secondary Window Area:** {st.session_state.get('csw_area', 0):,} SF")
         if st.session_state.step > 3:
+            building_type = st.session_state.get('building_type', 'Office')
             st.markdown(f"**HVAC:** {st.session_state.get('hvac_system', 'N/A')}")
             st.markdown(f"**Heating:** {st.session_state.get('heating_fuel', 'N/A')}")
-            building_type = st.session_state.get('building_type', 'Office')
             if building_type == 'Office':
                 st.markdown(f"**Operating Hours:** {st.session_state.get('operating_hours', 0):,}/yr")
             elif building_type == 'Hotel':
                 st.markdown(f"**Occupancy:** {st.session_state.get('occupancy_percent', 0)}%")
-                st.write
+            elif building_type == 'School':
+                st.markdown(f"**School Type:** {st.session_state.get('school_type', 'N/A')}")
