@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 # ============================================================================
 # CONFIGURATION
@@ -669,159 +669,101 @@ def generate_pdf_report(inputs, results, building_type):
         parent=styles['Heading1'],
         fontSize=24,
         textColor=colors.HexColor('#2C5F6F'),
-        spaceAfter=18,
+        spaceAfter=30,
         alignment=TA_CENTER
     )
     heading_style = ParagraphStyle(
         'CustomHeading',
         parent=styles['Heading2'],
-        fontSize=13,
+        fontSize=16,
         textColor=colors.HexColor('#2C5F6F'),
-        spaceAfter=8,
-        spaceBefore=10
+        spaceAfter=12,
+        spaceBefore=12
     )
     body_style = ParagraphStyle(
         'CustomBody',
         parent=styles['BodyText'],
-        fontSize=9,
-        leading=12,
-        spaceAfter=8,
-        alignment=TA_JUSTIFY
-    )
-    small_style = ParagraphStyle(
-        'SmallText',
-        parent=styles['BodyText'],
-        fontSize=7,
-        leading=9,
-        textColor=colors.grey,
-        alignment=TA_JUSTIFY
+        fontSize=10,
+        leading=14,
+        spaceAfter=12
     )
     
     # PAGE 1: ALPEN & WINSERT INFORMATION
-    # Add logo with corrected aspect ratio - stretched horizontally
+    # Add logo if it exists
     if os.path.exists('logo.png'):
-        logo = Image('logo.png', width=3.5*inch, height=1*inch)
+        logo = Image('logo.png', width=2*inch, height=0.8*inch)
         logo.hAlign = 'CENTER'
         story.append(logo)
-        story.append(Spacer(1, 0.15*inch))
+        story.append(Spacer(1, 0.2*inch))
     
-    story.append(Paragraph("Winsert® Secondary Glazing System", title_style))
+    story.append(Paragraph("Winsert™ Secondary Glazing System", title_style))
     story.append(Paragraph("Energy Savings Analysis Report", heading_style))
-    story.append(Spacer(1, 0.2*inch))
+    story.append(Spacer(1, 0.3*inch))
     
-    # About Alpen - Enhanced Marketing Content
-    story.append(Paragraph("Alpen & Winsert: High Performance Without Disruption", heading_style))
+    # About Alpen
+    story.append(Paragraph("About Alpen High Performance Products", heading_style))
     story.append(Paragraph(
-        "For over 40 years, <b>Alpen High Performance Products</b> has led the fenestration industry "
-        "with a focus on durability, energy efficiency, and elegant design. Headquartered in Colorado, "
-        "Alpen engineers windows, doors, and glass solutions tailored for both residential and commercial "
-        "settings. As a pioneer in high-performance building standards, Alpen is among the first North "
-        "American manufacturers to carry dual certification from PHIUS and PHI (Passive House). "
-        "Our philosophy: <i>radical performance within reach.</i>",
+        "For over four decades, Alpen High Performance Products has been leading the way in "
+        "climate-responsive design. We engineer custom solutions for durability, energy savings, "
+        "and design freedom. Our lightweight triple-pane and quad-pane glass technology delivers "
+        "unparalleled energy efficiency while ensuring water and air resistance.",
         body_style
     ))
     
-    story.append(Spacer(1, 0.08*inch))
-    
-    # Introducing Winsert
-    story.append(Paragraph("Introducing Winsert®", heading_style))
+    # About Winsert
+    story.append(Paragraph("The Winsert Advantage", heading_style))
     story.append(Paragraph(
-        "<b>Winsert</b> is Alpen's patented secondary glazing solution engineered to dramatically boost "
-        "performance in existing, underperforming window systems—without costly full window replacement. "
-        "This innovative interior-mounted system transforms aging windows into high-performance assets with "
-        "minimal disruption and immediate operational gains.",
+        "<b>WinSert Lite</b> utilizes a super-insulated, low profile fiberglass frame combined with "
+        "ultra-lightweight thin glass (typically 1.3 mm) laminated to a customized performance film. "
+        "AERC-certified installed U-value as low as 0.33.",
+        body_style
+    ))
+    story.append(Paragraph(
+        "<b>WinSert Plus</b> combines the same insulated fiberglass frame with a lightweight "
+        "high-performance insulated glass unit (IGU) composed of thin glass with low-emissivity "
+        "coating, warm edge spacer, and gas fill. AERC-certified installed U-value as low as 0.16.",
         body_style
     ))
     
-    story.append(Spacer(1, 0.05*inch))
-    
-    # Key Design Features - Condensed
-    story.append(Paragraph("Key Design Features", heading_style))
-    features_text = (
-        "• <b>ThinGlass® Technology:</b> Ultra-lightweight glass (typically 1.3 mm) laminated to advanced performance films with low embodied carbon<br/>"
-        "• <b>Winsert Lite:</b> Super-insulated fiberglass frame with thin glass laminate. AERC-certified installed U-value as low as 0.33<br/>"
-        "• <b>Winsert Plus:</b> Insulated fiberglass frame with lightweight high-performance IGU featuring low-e coating, warm edge spacer, and gas fill. AERC-certified installed U-value as low as 0.16<br/>"
-        "• <b>Rapid Installation:</b> Interior retrofit in under 10 minutes per unit without permanent fixtures or major disruption<br/>"
-        "• <b>Minimal Sightlines:</b> Low-profile design blends seamlessly into existing openings—ideal for historic preservation"
-    )
-    story.append(Paragraph(features_text, body_style))
-    
-    story.append(Spacer(1, 0.08*inch))
-    
-    # Performance Benefits - Condensed into table format
-    story.append(Paragraph("Performance & Benefits at a Glance", heading_style))
-    
-    benefits_data = [
-        ['Performance Metric', 'Benefit'],
-        ['Air Infiltration', 'Up to 97% reduction—drastically reduces thermal losses'],
-        ['Winter Comfort', '~20°F interior glass temperature increase near windows'],
-        ['Summer Comfort', '~20°F radiant temperature reduction—mitigates solar gain'],
-        ['Energy Savings', '12-18% whole-building energy savings with proven field results'],
-        ['HVAC Load', 'Up to 46% peak load reduction—less strain on systems'],
-        ['UV Protection', '99%+ UV blockage—protects interior finishes and furnishings'],
-        ['Acoustics', '30-60% improvement in acoustic performance'],
-        ['ROI', 'Installation costs as little as 10% of full window replacement']
+    # Benefits of Thin Glass Technology
+    story.append(Paragraph("Benefits of Thin Glass Technology", heading_style))
+    benefits = [
+        "97% reduction in air infiltration over existing windows",
+        "30-60% improvement in acoustic performance",
+        "Low embodied carbon, lightweight construction",
+        "Minimal sightlines ideal for historic applications",
+        "99%+ UV blockage protects interior finishes",
+        "Installation in under 10 minutes without permanent fixtures",
+        "15% average whole-building energy savings across all climate zones",
+        "Raises interior glass temperature by 20°F"
     ]
+    for benefit in benefits:
+        story.append(Paragraph(f"• {benefit}", body_style))
     
-    benefits_table = Table(benefits_data, colWidths=[1.8*inch, 4.2*inch])
-    benefits_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP')
-    ]))
-    story.append(benefits_table)
-    
-    story.append(Spacer(1, 0.1*inch))
-    
-    # Recognition - Condensed
-    story.append(Paragraph("Industry Recognition", heading_style))
+    # DOE Recognition
+    story.append(Spacer(1, 0.2*inch))
+    story.append(Paragraph("Department of Energy Recognition", heading_style))
     story.append(Paragraph(
-        "Alpen received the <b>DOE Retro 30 Award</b> for achieving 32% building envelope improvement and "
-        "13.4% total energy reduction in the Pacific Tower retrofit—completed in just over a week "
-        "with 89% cost savings versus full window replacement. Winsert was also named to "
-        "<b>BuildingGreen's Top 10 Products</b> (2022) and carries AERC certification for performance.",
-        body_style
-    ))
-    
-    story.append(Spacer(1, 0.1*inch))
-    story.append(Paragraph(
-        "<i>From historic preservation projects to large commercial facades, Winsert enables owners and "
-        "designers to transform aging windows into high-performance assets with minimal disruption, less "
-        "cost, and immediate gains in energy, comfort, and operational value.</i>",
+        "Alpen was named a semifinalist in the DOE's $2.1 million Building Envelope Prize competition "
+        "and received the DOE Retro 30 Award for achieving 32% building envelope improvement and 13.4% "
+        "total energy reduction in the Pacific Tower retrofit project - completed in just over a week "
+        "with 89% cost savings compared to full window replacement.",
         body_style
     ))
     
     story.append(PageBreak())
     
-    # PAGE 2: PROJECT RESULTS
+    # PAGE 2: PROJECT RESULTS - SECTION A: INPUT SUMMARY
     story.append(Paragraph("Your Energy Savings Analysis", title_style))
-    story.append(Spacer(1, 0.15*inch))
+    story.append(Spacer(1, 0.2*inch))
     
-    # SECTION A: INPUT SUMMARY (with HDD, CDD, WWR integrated)
-    story.append(Paragraph("A. Project Input Summary", heading_style))
-    
+    story.append(Paragraph("A. Input Summary", heading_style))
     input_data = [
         ['Parameter', 'Value'],
         ['Building Type', building_type],
         ['Location', f"{inputs['city']}, {inputs['state']}"],
-        ['Heating Degree Days (HDD)', f"{results['hdd']:,.0f}"],
-        ['Cooling Degree Days (CDD)', f"{results['cdd']:,.0f}"],
         ['Building Area', f"{inputs['building_area']:,} sq ft"],
         ['Number of Floors', f"{inputs['num_floors']}"],
-    ]
-    
-    # Add WWR if available
-    if results.get('wwr') is not None:
-        input_data.append(['Window-to-Wall Ratio', f"{results['wwr']:.0%}"])
-    
-    input_data.extend([
         ['Existing Window Type', inputs['existing_window']],
         ['Secondary Window Product', inputs['csw_type']],
         ['Secondary Window Area', f"{inputs['csw_area']:,} sq ft"],
@@ -830,7 +772,7 @@ def generate_pdf_report(inputs, results, building_type):
         ['Cooling Installed', inputs['cooling_installed']],
         ['Electric Rate', f"${inputs['electric_rate']:.3f}/kWh"],
         ['Natural Gas Rate', f"${inputs['gas_rate']:.2f}/therm"],
-    ])
+    ]
     
     # Add building-type specific inputs
     if building_type == 'School' and 'school_type' in inputs:
@@ -840,110 +782,95 @@ def generate_pdf_report(inputs, results, building_type):
     elif building_type == 'Hotel' and 'occupancy_percent' in inputs:
         input_data.append(['Average Occupancy', f"{inputs['occupancy_percent']}%"])
     
-    input_table = Table(input_data, colWidths=[2.8*inch, 3.2*inch])
+    input_table = Table(input_data, colWidths=[2.5*inch, 3.5*inch])
     input_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
     ]))
     story.append(input_table)
-    story.append(Spacer(1, 0.15*inch))
+    story.append(Spacer(1, 0.3*inch))
     
-    # SECTION B: ENERGY SAVINGS SUMMARY WITH WATERFALL CHART
+    # SECTION B: ENERGY SAVINGS SUMMARY
     story.append(Paragraph("B. Energy Savings Summary", heading_style))
     
-    # Generate Waterfall Chart with improved settings for PDF export
+    # Generate Waterfall Chart
     baseline_eui = results['baseline_eui']
     savings_eui = results['total_savings_kbtu_sf']
     new_eui = results['new_eui']
     
-    chart_added = False
+    fig = go.Figure(go.Waterfall(
+        orientation = "v",
+        measure = ["absolute", "relative", "total"],
+        x = ["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert", "EUI After<br>Winsert"],
+        y = [baseline_eui, -savings_eui, new_eui],
+        text = [f"{baseline_eui:.1f}", f"−{savings_eui:.1f}", f"{new_eui:.1f}"],
+        textposition = ["inside", "outside", "inside"],
+        textfont = dict(size=14, color="white"),
+        increasing = {"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+        decreasing = {"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+        totals = {"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+        connector = {"line":{"color":"rgb(100, 100, 100)", "width":1}},
+        width = [0.5, 0.5, 0.5]
+    ))
+    
+    fig.update_layout(
+        title="Energy Use Intensity (EUI) Reduction",
+        height=400,
+        width=600,
+        showlegend=False,
+        yaxis=dict(title='kBtu/SF-yr', title_font=dict(size=12), gridcolor='#E0E0E0', rangemode='tozero'),
+        xaxis=dict(title_font=dict(size=11)),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(t=60, b=80, l=60, r=20)
+    )
+    
+    # Convert plotly figure to image
     try:
-        fig = go.Figure(go.Waterfall(
-            orientation = "v",
-            measure = ["absolute", "relative", "total"],
-            x = ["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert", "EUI After<br>Winsert"],
-            y = [baseline_eui, -savings_eui, new_eui],
-            text = [f"{baseline_eui:.1f}", f"−{savings_eui:.1f}", f"{new_eui:.1f}"],
-            textposition = ["inside", "outside", "inside"],
-            textfont = dict(size=16, color="white", family="Arial"),
-            increasing = {"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
-            decreasing = {"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
-            totals = {"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
-            connector = {"line":{"color":"rgb(100, 100, 100)", "width":1.5}},
-            width = [0.6, 0.6, 0.6]
-        ))
-        
-        fig.update_layout(
-            title={
-                'text': "Energy Use Intensity (EUI) Reduction",
-                'font': {'size': 14, 'color': '#2C5F6F', 'family': 'Arial'},
-                'x': 0.5,
-                'xanchor': 'center'
-            },
-            height=300,
-            width=500,
-            showlegend=False,
-            yaxis=dict(
-                title='kBtu/SF-yr', 
-                title_font=dict(size=11), 
-                gridcolor='#E0E0E0', 
-                rangemode='tozero'
-            ),
-            xaxis=dict(title_font=dict(size=10)),
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            margin=dict(t=50, b=50, l=60, r=30)
-        )
-        
-        # Convert plotly figure to image with high DPI for PDF
-        img_bytes = pio.to_image(fig, format='png', width=500, height=300, scale=3)
+        img_bytes = pio.to_image(fig, format='png', width=600, height=400)
         img_buffer = BytesIO(img_bytes)
-        chart_img = Image(img_buffer, width=5*inch, height=3*inch)
+        chart_img = Image(img_buffer, width=5.5*inch, height=3.5*inch)
         chart_img.hAlign = 'CENTER'
         story.append(chart_img)
-        story.append(Spacer(1, 0.12*inch))
-        chart_added = True
+        story.append(Spacer(1, 0.2*inch))
     except Exception as e:
-        # Fallback if chart generation fails
-        story.append(Paragraph(
-            f"<i>Chart visualization requires kaleido package. Install with: pip install kaleido</i>", 
-            small_style
-        ))
-        story.append(Spacer(1, 0.08*inch))
+        # If chart generation fails, add a note
+        story.append(Paragraph(f"Note: Chart visualization unavailable. See table below for EUI data.", body_style))
+        story.append(Spacer(1, 0.1*inch))
     
-    # EUI Performance Table
-    eui_data = [
-        ['EUI Performance Metric', 'Value (kBtu/SF-year)'],
+    # EUI Waterfall Data Table
+    eui_waterfall_data = [
+        ['EUI Performance', 'Value (kBtu/SF-year)'],
         ['Baseline EUI (Before Winsert)', f"{results['baseline_eui']:.1f}"],
         ['EUI Savings with Winsert', f"{results['total_savings_kbtu_sf']:.1f}"],
         ['New EUI (After Winsert)', f"{results['new_eui']:.1f}"],
         ['Percentage EUI Reduction', f"{results['percent_eui_savings']:.1f}%"],
     ]
     
-    eui_table = Table(eui_data, colWidths=[3.2*inch, 2.8*inch])
+    eui_table = Table(eui_waterfall_data, colWidths=[3*inch, 3*inch])
     eui_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#E8F4F8')),
     ]))
     story.append(eui_table)
-    story.append(Spacer(1, 0.12*inch))
+    story.append(Spacer(1, 0.2*inch))
     
     # Energy Savings Details
     energy_savings_data = [
@@ -959,17 +886,17 @@ def generate_pdf_report(inputs, results, building_type):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
     ]))
     story.append(energy_table)
-    story.append(Spacer(1, 0.15*inch))
+    story.append(Spacer(1, 0.3*inch))
     
     # SECTION C: UTILITY COST SAVINGS
-    story.append(Paragraph("C. Annual Utility Cost Savings", heading_style))
+    story.append(Paragraph("C. Utility Cost Savings", heading_style))
     
     cost_savings_data = [
         ['Utility Type', 'Annual Cost Savings'],
@@ -985,38 +912,45 @@ def generate_pdf_report(inputs, results, building_type):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E8F4F8')),
     ]))
     story.append(cost_table)
+    story.append(Spacer(1, 0.3*inch))
     
-    # Footer - Contact Info
-    story.append(Spacer(1, 0.2*inch))
+    # Climate Data
+    story.append(Paragraph("Climate Data", heading_style))
+    climate_data = [
+        ['Heating Degree Days (HDD)', f"{results['hdd']:,.0f}"],
+        ['Cooling Degree Days (CDD)', f"{results['cdd']:,.0f}"],
+    ]
+    if results['wwr']:
+        climate_data.append(['Window-to-Wall Ratio', f"{results['wwr']:.0%}"])
+    
+    climate_table = Table(climate_data, colWidths=[3*inch, 3*inch])
+    climate_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E8F4F8')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+    ]))
+    story.append(climate_table)
+    
+    # Footer
+    story.append(Spacer(1, 0.5*inch))
     story.append(Paragraph(
         "For more information about Winsert secondary glazing systems, visit "
         "<link href='https://www.thinkalpen.com/winsert' color='blue'>www.thinkalpen.com/winsert</link>",
         body_style
-    ))
-    
-    # Legal Disclaimer
-    story.append(Spacer(1, 0.15*inch))
-    story.append(Paragraph("Disclaimer", heading_style))
-    story.append(Paragraph(
-        "The energy savings estimates presented in this report are derived from a comprehensive database "
-        "of EnergyPlus simulation models based on the U.S. Department of Energy Commercial Reference Buildings. "
-        "These modeled results represent typical energy performance for the specified building type, climate zone, "
-        "and operating parameters. Actual energy savings may vary based on site-specific conditions, building "
-        "characteristics, occupancy patterns, operational practices, and other factors not captured in the reference models. "
-        "This analysis is intended to provide preliminary estimates for planning and decision-making purposes and "
-        "is not a substitute for a comprehensive, site-specific energy audit or detailed building energy simulation. "
-        "For critical applications or investment decisions, Alpen recommends conducting a full engineering analysis "
-        "tailored to your specific building conditions and operational requirements.",
-        small_style
     ))
     
     # Build PDF
@@ -1309,49 +1243,7 @@ elif st.session_state.step == 3:
             if 'heating_fuel' in st.session_state and st.session_state.heating_fuel in heating_fuels_list:
                 fuel_idx = heating_fuels_list.index(st.session_state.heating_fuel)
         
-        heating_fuel = st.selectbox('Heating Fuel', options=heating_fuels_list, index=fuel_idx, key='sidebar_heating_fuel')
-        if heating_fuel != st.session_state.get('heating_fuel'):
-            st.session_state.heating_fuel = heating_fuel
-            st.rerun()
-        
-        cooling_installed = st.selectbox('Cooling?', options=COOLING_OPTIONS, index=COOLING_OPTIONS.index(st.session_state.get('cooling_installed', 'Yes')), key='sidebar_cooling_installed')
-        if cooling_installed != st.session_state.get('cooling_installed'):
-            st.session_state.cooling_installed = cooling_installed
-            st.rerun()
-        
-        electric_rate = st.number_input('Electric Rate ($/kWh)', min_value=0.01, max_value=1.0, value=st.session_state.get('electric_rate', 0.12), step=0.01, format='%.3f', key='sidebar_electric_rate')
-        if electric_rate != st.session_state.get('electric_rate'):
-            st.session_state.electric_rate = electric_rate
-            st.rerun()
-        
-        gas_rate = st.number_input('Gas Rate ($/therm)', min_value=0.01, max_value=10.0, value=st.session_state.get('gas_rate', 0.80), step=0.05, format='%.2f', key='sidebar_gas_rate')
-        if gas_rate != st.session_state.get('gas_rate'):
-            st.session_state.gas_rate = gas_rate
-            st.rerun()
-    else:
-        st.markdown('### 📝 Summary')
-        if st.session_state.step > 0:
-            building_type = st.session_state.get('building_type', 'Not selected')
-            if building_type == 'School' and 'school_type' in st.session_state:
-                st.markdown(f"**Building Type:** {building_type} - {st.session_state.get('school_type')}")
-            else:
-                st.markdown(f"**Building Type:** {building_type}")
-        if st.session_state.step > 1:
-            st.markdown(f"**Location:** {st.session_state.get('city', 'N/A')}, {st.session_state.get('state', 'N/A')}")
-        if st.session_state.step > 2:
-            st.markdown(f"**Building:** {st.session_state.get('building_area', 0):,} SF, {st.session_state.get('num_floors', 0)} floors")
-            st.markdown(f"**Windows:** {st.session_state.get('existing_window', 'N/A')} → {st.session_state.get('csw_type', 'N/A')}")
-            st.markdown(f"**Secondary Window Area:** {st.session_state.get('csw_area', 0):,} SF")
-        if st.session_state.step > 3:
-            building_type = st.session_state.get('building_type', 'Office')
-            st.markdown(f"**HVAC:** {st.session_state.get('hvac_system', 'N/A')}")
-            st.markdown(f"**Heating:** {st.session_state.get('heating_fuel', 'N/A')}")
-            if building_type == 'Office':
-                st.markdown(f"**Operating Hours:** {st.session_state.get('operating_hours', 0):,}/yr")
-            elif building_type == 'Hotel':
-                st.markdown(f"**Occupancy:** {st.session_state.get('occupancy_percent', 0)}%")
-            elif building_type == 'School':
-                st.markdown(f"**School Type:** {st.session_state.get('school_type', 'N/A')}")heating_fuel_select')
+        heating_fuel = st.selectbox('Heating Fuel', options=heating_fuels_list, index=fuel_idx, key='heating_fuel_select')
         st.session_state.heating_fuel = heating_fuel
         
         cooling_options_list = COOLING_OPTIONS
@@ -1687,4 +1579,46 @@ with st.sidebar:
             if 'heating_fuel' in st.session_state and st.session_state.heating_fuel in heating_fuels_list:
                 fuel_idx = heating_fuels_list.index(st.session_state.heating_fuel)
         
-        heating_fuel = st.selectbox('Heating Fuel', options=heating_fuels_list, index=fuel_idx, key='
+        heating_fuel = st.selectbox('Heating Fuel', options=heating_fuels_list, index=fuel_idx, key='sidebar_heating_fuel')
+        if heating_fuel != st.session_state.get('heating_fuel'):
+            st.session_state.heating_fuel = heating_fuel
+            st.rerun()
+        
+        cooling_installed = st.selectbox('Cooling?', options=COOLING_OPTIONS, index=COOLING_OPTIONS.index(st.session_state.get('cooling_installed', 'Yes')), key='sidebar_cooling_installed')
+        if cooling_installed != st.session_state.get('cooling_installed'):
+            st.session_state.cooling_installed = cooling_installed
+            st.rerun()
+        
+        electric_rate = st.number_input('Electric Rate ($/kWh)', min_value=0.01, max_value=1.0, value=st.session_state.get('electric_rate', 0.12), step=0.01, format='%.3f', key='sidebar_electric_rate')
+        if electric_rate != st.session_state.get('electric_rate'):
+            st.session_state.electric_rate = electric_rate
+            st.rerun()
+        
+        gas_rate = st.number_input('Gas Rate ($/therm)', min_value=0.01, max_value=10.0, value=st.session_state.get('gas_rate', 0.80), step=0.05, format='%.2f', key='sidebar_gas_rate')
+        if gas_rate != st.session_state.get('gas_rate'):
+            st.session_state.gas_rate = gas_rate
+            st.rerun()
+    else:
+        st.markdown('### 📝 Summary')
+        if st.session_state.step > 0:
+            building_type = st.session_state.get('building_type', 'Not selected')
+            if building_type == 'School' and 'school_type' in st.session_state:
+                st.markdown(f"**Building Type:** {building_type} - {st.session_state.get('school_type')}")
+            else:
+                st.markdown(f"**Building Type:** {building_type}")
+        if st.session_state.step > 1:
+            st.markdown(f"**Location:** {st.session_state.get('city', 'N/A')}, {st.session_state.get('state', 'N/A')}")
+        if st.session_state.step > 2:
+            st.markdown(f"**Building:** {st.session_state.get('building_area', 0):,} SF, {st.session_state.get('num_floors', 0)} floors")
+            st.markdown(f"**Windows:** {st.session_state.get('existing_window', 'N/A')} → {st.session_state.get('csw_type', 'N/A')}")
+            st.markdown(f"**Secondary Window Area:** {st.session_state.get('csw_area', 0):,} SF")
+        if st.session_state.step > 3:
+            building_type = st.session_state.get('building_type', 'Office')
+            st.markdown(f"**HVAC:** {st.session_state.get('hvac_system', 'N/A')}")
+            st.markdown(f"**Heating:** {st.session_state.get('heating_fuel', 'N/A')}")
+            if building_type == 'Office':
+                st.markdown(f"**Operating Hours:** {st.session_state.get('operating_hours', 0):,}/yr")
+            elif building_type == 'Hotel':
+                st.markdown(f"**Occupancy:** {st.session_state.get('occupancy_percent', 0)}%")
+            elif building_type == 'School':
+                st.markdown(f"**School Type:** {st.session_state.get('school_type', 'N/A')}")
