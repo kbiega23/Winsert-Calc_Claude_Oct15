@@ -638,6 +638,8 @@ with col_logo:
 with col_title:
     st.markdown("<h1 style='margin-bottom: 0;'>Winsert Savings Calculator</h1>", unsafe_allow_html=True)
     building_type_display = st.session_state.get('building_type', 'Select Building Type')
+    if building_type_display == 'School' and 'school_type' in st.session_state:
+        building_type_display = f"School - {st.session_state.get('school_type')}"
     st.markdown(f"<p style='font-size: 1.2em; color: #666; margin-top: 0;'>{building_type_display}</p>", unsafe_allow_html=True)
 
 st.markdown('---')
@@ -653,10 +655,11 @@ if REGRESSION_COEFFICIENTS.empty:
 
 # Calculate total steps
 total_steps = 5
-if st.session_state.step > 0:
+if st.session_state.step > 0 and st.session_state.step != 0.5:
+    # Don't show progress bar for step 0.5 (school type selection)
     progress = st.session_state.step / total_steps
     st.progress(progress)
-    st.write(f'Step {st.session_state.step} of {total_steps}')
+    st.write(f'Step {int(st.session_state.step)} of {total_steps}')
 
 # STEP 0: Building Type Selection
 if st.session_state.step == 0:
@@ -679,8 +682,33 @@ if st.session_state.step == 0:
     with col3:
         if st.button('🏫 School', use_container_width=True, type='primary'):
             st.session_state.building_type = 'School'
+            # For schools, go to school type selection first
+            st.session_state.step = 0.5
+            st.rerun()
+
+# STEP 0.5: School Type Selection (only for schools)
+elif st.session_state.step == 0.5:
+    st.header('Step 1b: Select School Type')
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button('🏫 Primary School', use_container_width=True, type='primary'):
+            st.session_state.school_type = 'Primary School'
             st.session_state.step = 1
             st.rerun()
+    
+    with col2:
+        if st.button('🏫 Secondary School', use_container_width=True, type='primary'):
+            st.session_state.school_type = 'Secondary School'
+            st.session_state.step = 1
+            st.rerun()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button('← Back'):
+        st.session_state.building_type = None
+        st.session_state.step = 0
+        st.rerun()
 
 # STEP 1: Location
 elif st.session_state.step == 1:
@@ -731,7 +759,11 @@ elif st.session_state.step == 1:
     col_back, col_next = st.columns([1, 1])
     with col_back:
         if st.button('← Back'):
-            st.session_state.step = 0
+            building_type = st.session_state.get('building_type', 'Office')
+            if building_type == 'School':
+                st.session_state.step = 0.5  # Go back to school type selection
+            else:
+                st.session_state.step = 0  # Go back to building type selection
             st.rerun()
     with col_next:
         if st.button('Next →', type='primary'):
@@ -853,13 +885,7 @@ elif st.session_state.step == 3:
         elif building_type == 'Hotel':
             occupancy_percent = st.slider('Average Occupancy (%)', min_value=33, max_value=100, value=st.session_state.get('occupancy_percent', 70), step=1, key='occupancy_input', help='Between 33% and 100%')
             st.session_state.occupancy_percent = occupancy_percent
-        elif building_type == 'School':
-            # School type selection
-            school_type_idx = 0
-            if 'school_type' in st.session_state and st.session_state.school_type in SCHOOL_TYPES:
-                school_type_idx = SCHOOL_TYPES.index(st.session_state.school_type)
-            school_type = st.selectbox('School Type', options=SCHOOL_TYPES, index=school_type_idx, key='school_type_input')
-            st.session_state.school_type = school_type
+        # Note: School type was already selected in Step 0.5
     
     with col2:
         if building_type == 'Office':
@@ -1173,10 +1199,8 @@ with st.sidebar:
                 st.session_state.occupancy_percent = occupancy
                 st.rerun()
         elif building_type == 'School':
-            school_type = st.selectbox('School Type', options=SCHOOL_TYPES, index=SCHOOL_TYPES.index(st.session_state.get('school_type', SCHOOL_TYPES[0])), key='sidebar_school_type')
-            if school_type != st.session_state.get('school_type'):
-                st.session_state.school_type = school_type
-                st.rerun()
+            # School type was selected in Step 0.5 and cannot be changed here
+            st.text(f"School Type: {st.session_state.get('school_type', 'N/A')}")
         
         if building_type == 'Office':
             hvac_systems = OFFICE_HVAC_SYSTEMS
@@ -1227,7 +1251,10 @@ with st.sidebar:
         st.markdown('### 📝 Summary')
         if st.session_state.step > 0:
             building_type = st.session_state.get('building_type', 'Not selected')
-            st.markdown(f"**Building Type:** {building_type}")
+            if building_type == 'School' and 'school_type' in st.session_state:
+                st.markdown(f"**Building Type:** {building_type} - {st.session_state.get('school_type')}")
+            else:
+                st.markdown(f"**Building Type:** {building_type}")
         if st.session_state.step > 1:
             st.markdown(f"**Location:** {st.session_state.get('city', 'N/A')}, {st.session_state.get('state', 'N/A')}")
         if st.session_state.step > 2:
