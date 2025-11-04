@@ -1,6 +1,7 @@
 """
 CSW Savings Calculator - Streamlit Web App
 MULTI-BUILDING VERSION - Supports Office, Hotel, and School buildings
+DUAL PRODUCT COMPARISON - Shows savings for both Winsert Lite and Winsert Plus
 
 Requirements:
 - streamlit
@@ -72,7 +73,6 @@ SCHOOL_TYPE_MAPPING = {'Primary School': 'PS', 'Secondary School': 'SS'}
 HEATING_FUELS = ['Electric', 'Natural Gas', 'None']
 COOLING_OPTIONS = ['Yes', 'No']
 WINDOW_TYPES = ['Single pane', 'Double pane']
-CSW_TYPES = ['Winsert Lite', 'Winsert Plus']
 CSW_TYPE_MAPPING = {'Winsert Lite': 'Single', 'Winsert Plus': 'Double'}
 
 # Cooling adjustment polynomial coefficients for Office
@@ -657,8 +657,8 @@ def calculate_savings_school(inputs):
 # PDF GENERATION
 # ============================================================================
 
-def generate_pdf_report(inputs, results, building_type):
-    """Generate a PDF report with Alpen/Winsert info and results"""
+def generate_pdf_report(inputs, results_lite, results_plus, building_type):
+    """Generate a PDF report with Alpen/Winsert info and results for both products"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
     story = []
@@ -765,7 +765,6 @@ def generate_pdf_report(inputs, results, building_type):
         ['Building Area', f"{inputs['building_area']:,} sq ft"],
         ['Number of Floors', f"{inputs['num_floors']}"],
         ['Existing Window Type', inputs['existing_window']],
-        ['Secondary Window Product', inputs['csw_type']],
         ['Secondary Window Area', f"{inputs['csw_area']:,} sq ft"],
         ['HVAC System', inputs['hvac_system']],
         ['Heating Fuel', inputs['heating_fuel']],
@@ -798,36 +797,61 @@ def generate_pdf_report(inputs, results, building_type):
     story.append(input_table)
     story.append(Spacer(1, 0.3*inch))
     
-    # SECTION B: ENERGY SAVINGS SUMMARY
-    story.append(Paragraph("B. Energy Savings Summary", heading_style))
+    # SECTION B: ENERGY SAVINGS COMPARISON
+    story.append(Paragraph("B. Product Comparison: Energy & Cost Savings", heading_style))
     
     # Generate Waterfall Chart
-    baseline_eui = results['baseline_eui']
-    savings_eui = results['total_savings_kbtu_sf']
-    new_eui = results['new_eui']
+    baseline_eui = results_lite['baseline_eui']
+    savings_lite = results_lite['total_savings_kbtu_sf']
+    eui_lite = results_lite['new_eui']
+    savings_plus = results_plus['total_savings_kbtu_sf']
+    eui_plus = results_plus['new_eui']
+    additional_savings = savings_plus - savings_lite
     
-    fig = go.Figure(go.Waterfall(
-        orientation = "v",
-        measure = ["absolute", "relative", "total"],
-        x = ["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert", "EUI After<br>Winsert"],
-        y = [baseline_eui, -savings_eui, new_eui],
-        text = [f"{baseline_eui:.1f}", f"−{savings_eui:.1f}", f"{new_eui:.1f}"],
-        textposition = ["inside", "outside", "inside"],
-        textfont = dict(size=14, color="white"),
-        increasing = {"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
-        decreasing = {"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
-        totals = {"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
-        connector = {"line":{"color":"rgb(100, 100, 100)", "width":1}},
-        width = [0.5, 0.5, 0.5]
-    ))
+    # Determine if we should show both products or just Lite
+    show_both = inputs['existing_window'] == 'Single pane'
+    
+    if show_both:
+        fig = go.Figure(go.Waterfall(
+            orientation="v",
+            measure=["absolute", "relative", "total", "relative", "total"],
+            x=["Baseline EUI", "Savings with<br>Winsert Lite", "EUI with<br>Winsert Lite", 
+               "Additional Savings<br>Lite → Plus", "Final EUI with<br>Winsert Plus"],
+            y=[baseline_eui, -savings_lite, eui_lite, -additional_savings, eui_plus],
+            text=[f"{baseline_eui:.1f}", f"−{savings_lite:.1f}", f"{eui_lite:.1f}", 
+                  f"−{additional_savings:.1f}", f"{eui_plus:.1f}"],
+            textposition=["inside", "outside", "inside", "outside", "inside"],
+            textfont=dict(size=12, color="white"),
+            increasing={"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+            decreasing={"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+            totals={"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+            connector={"line":{"color":"rgb(100, 100, 100)", "width":1}},
+            width=[0.5, 0.5, 0.5, 0.5, 0.5]
+        ))
+    else:
+        # Only show Lite for double pane existing windows
+        fig = go.Figure(go.Waterfall(
+            orientation="v",
+            measure=["absolute", "relative", "total"],
+            x=["Baseline EUI", "Savings with<br>Winsert Lite", "EUI with<br>Winsert Lite"],
+            y=[baseline_eui, -savings_lite, eui_lite],
+            text=[f"{baseline_eui:.1f}", f"−{savings_lite:.1f}", f"{eui_lite:.1f}"],
+            textposition=["inside", "outside", "inside"],
+            textfont=dict(size=14, color="white"),
+            increasing={"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+            decreasing={"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+            totals={"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+            connector={"line":{"color":"rgb(100, 100, 100)", "width":1}},
+            width=[0.5, 0.5, 0.5]
+        ))
     
     fig.update_layout(
-        title="Energy Use Intensity (EUI) Reduction",
+        title="Energy Use Intensity (EUI) Reduction by Product",
         height=400,
         width=600,
         showlegend=False,
         yaxis=dict(title='kBtu/SF-yr', title_font=dict(size=12), gridcolor='#E0E0E0', rangemode='tozero'),
-        xaxis=dict(title_font=dict(size=11)),
+        xaxis=dict(title_font=dict(size=10)),
         plot_bgcolor='white',
         paper_bgcolor='white',
         margin=dict(t=60, b=80, l=60, r=20)
@@ -842,95 +866,59 @@ def generate_pdf_report(inputs, results, building_type):
         story.append(chart_img)
         story.append(Spacer(1, 0.2*inch))
     except Exception as e:
-        # If chart generation fails, add a note
-        story.append(Paragraph(f"Note: Chart visualization unavailable. See table below for EUI data.", body_style))
+        story.append(Paragraph(f"Note: Chart visualization unavailable. See tables below for detailed data.", body_style))
         story.append(Spacer(1, 0.1*inch))
     
-    # EUI Waterfall Data Table
-    eui_waterfall_data = [
-        ['EUI Performance', 'Value (kBtu/SF-year)'],
-        ['Baseline EUI (Before Winsert)', f"{results['baseline_eui']:.1f}"],
-        ['EUI Savings with Winsert', f"{results['total_savings_kbtu_sf']:.1f}"],
-        ['New EUI (After Winsert)', f"{results['new_eui']:.1f}"],
-        ['Percentage EUI Reduction', f"{results['percent_eui_savings']:.1f}%"],
-    ]
+    # Comparison Table
+    if show_both:
+        comparison_data = [
+            ['Metric', 'Winsert Lite', 'Winsert Plus'],
+            ['Baseline EUI', f"{baseline_eui:.1f} kBtu/SF-yr", f"{baseline_eui:.1f} kBtu/SF-yr"],
+            ['EUI Savings', f"{savings_lite:.1f} kBtu/SF-yr", f"{savings_plus:.1f} kBtu/SF-yr"],
+            ['New EUI', f"{eui_lite:.1f} kBtu/SF-yr", f"{eui_plus:.1f} kBtu/SF-yr"],
+            ['% EUI Reduction', f"{results_lite['percent_eui_savings']:.1f}%", f"{results_plus['percent_eui_savings']:.1f}%"],
+            ['Electric Savings', f"{results_lite['electric_savings_kwh']:,.0f} kWh/yr", f"{results_plus['electric_savings_kwh']:,.0f} kWh/yr"],
+            ['Gas Savings', f"{results_lite['gas_savings_therms']:,.0f} therms/yr", f"{results_plus['gas_savings_therms']:,.0f} therms/yr"],
+            ['Annual Cost Savings', f"${results_lite['total_cost_savings']:,.2f}/yr", f"${results_plus['total_cost_savings']:,.2f}/yr"],
+        ]
+    else:
+        comparison_data = [
+            ['Metric', 'Winsert Lite'],
+            ['Baseline EUI', f"{baseline_eui:.1f} kBtu/SF-yr"],
+            ['EUI Savings', f"{savings_lite:.1f} kBtu/SF-yr"],
+            ['New EUI', f"{eui_lite:.1f} kBtu/SF-yr"],
+            ['% EUI Reduction', f"{results_lite['percent_eui_savings']:.1f}%"],
+            ['Electric Savings', f"{results_lite['electric_savings_kwh']:,.0f} kWh/yr"],
+            ['Gas Savings', f"{results_lite['gas_savings_therms']:,.0f} therms/yr"],
+            ['Annual Cost Savings', f"${results_lite['total_cost_savings']:,.2f}/yr"],
+        ]
+        story.append(Paragraph("Note: Winsert Plus is only available for single pane existing windows.", body_style))
     
-    eui_table = Table(eui_waterfall_data, colWidths=[3*inch, 3*inch])
-    eui_table.setStyle(TableStyle([
+    comparison_table = Table(comparison_data, colWidths=[2.5*inch, 1.75*inch, 1.75*inch] if show_both else [3*inch, 3*inch])
+    comparison_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#E8F4F8')),
-    ]))
-    story.append(eui_table)
-    story.append(Spacer(1, 0.2*inch))
-    
-    # Energy Savings Details
-    energy_savings_data = [
-        ['Energy Type', 'Annual Savings'],
-        ['Electric Energy', f"{results['electric_savings_kwh']:,.0f} kWh/year"],
-        ['Natural Gas', f"{results['gas_savings_therms']:,.0f} therms/year"],
-    ]
-    
-    energy_table = Table(energy_savings_data, colWidths=[3*inch, 3*inch])
-    energy_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
-    ]))
-    story.append(energy_table)
-    story.append(Spacer(1, 0.3*inch))
-    
-    # SECTION C: UTILITY COST SAVINGS
-    story.append(Paragraph("C. Utility Cost Savings", heading_style))
-    
-    cost_savings_data = [
-        ['Utility Type', 'Annual Cost Savings'],
-        ['Electric Cost Savings', f"${results['electric_cost_savings']:,.2f}/year"],
-        ['Natural Gas Cost Savings', f"${results['gas_cost_savings']:,.2f}/year"],
-        ['Total Annual Cost Savings', f"${results['total_cost_savings']:,.2f}/year"],
-    ]
-    
-    cost_table = Table(cost_savings_data, colWidths=[3*inch, 3*inch])
-    cost_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F6F')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E8F4F8')),
     ]))
-    story.append(cost_table)
+    story.append(comparison_table)
     story.append(Spacer(1, 0.3*inch))
     
     # Climate Data
     story.append(Paragraph("Climate Data", heading_style))
     climate_data = [
-        ['Heating Degree Days (HDD)', f"{results['hdd']:,.0f}"],
-        ['Cooling Degree Days (CDD)', f"{results['cdd']:,.0f}"],
+        ['Heating Degree Days (HDD)', f"{results_lite['hdd']:,.0f}"],
+        ['Cooling Degree Days (CDD)', f"{results_lite['cdd']:,.0f}"],
     ]
-    if results['wwr']:
-        climate_data.append(['Window-to-Wall Ratio', f"{results['wwr']:.0%}"])
+    if results_lite['wwr']:
+        climate_data.append(['Window-to-Wall Ratio', f"{results_lite['wwr']:.0%}"])
     
     climate_table = Table(climate_data, colWidths=[3*inch, 3*inch])
     climate_table.setStyle(TableStyle([
@@ -1101,7 +1089,7 @@ elif st.session_state.step == 1:
                 st.session_state.step = 2
                 st.rerun()
 
-# STEP 2: Building Envelope
+# STEP 2: Building Envelope (CSW Type Selection REMOVED)
 elif st.session_state.step == 2:
     building_type = st.session_state.get('building_type', 'Office')
     st.header('Step 2: Building Envelope Information')
@@ -1138,26 +1126,14 @@ elif st.session_state.step == 2:
             help="Number of floors must be between 1 and 100"
         )
         st.session_state.num_floors = num_floors
-        
+    
+    with col2:
         window_types_list = WINDOW_TYPES
         existing_window_idx = 0
         if 'existing_window' in st.session_state and st.session_state.existing_window in window_types_list:
             existing_window_idx = window_types_list.index(st.session_state.existing_window)
         existing_window = st.selectbox('Type of Existing Window', options=window_types_list, index=existing_window_idx, key='existing_window_select')
         st.session_state.existing_window = existing_window
-    
-    with col2:
-        if existing_window == 'Double pane':
-            csw_types_list = ['Winsert Lite']
-            csw_type_idx = 0
-        else:
-            csw_types_list = CSW_TYPES
-            csw_type_idx = 0
-            if 'csw_type' in st.session_state and st.session_state.csw_type in csw_types_list:
-                csw_type_idx = csw_types_list.index(st.session_state.csw_type)
-        
-        csw_type = st.selectbox('Secondary Window Product', options=csw_types_list, index=csw_type_idx, key='csw_type_select')
-        st.session_state.csw_type = csw_type
         
         csw_area = st.number_input('Total Sq. Ft of Secondary Windows Installed', min_value=0, max_value=int(building_area * 0.5), value=min(st.session_state.get('csw_area', 12000), int(building_area * 0.5)), step=100, key='csw_area_input')
         st.session_state.csw_area = csw_area
@@ -1182,6 +1158,10 @@ elif st.session_state.step == 2:
                 st.session_state.wwr_error = False
         else:
             st.session_state.wwr_error = False
+    
+    # Info box about product comparison
+    st.info("ℹ️ The calculator will compare savings for both Winsert Lite and Winsert Plus products" + 
+            (" (where applicable)" if existing_window == 'Double pane' else "") + ".")
     
     st.markdown("<br>", unsafe_allow_html=True)
     col_back, col_next = st.columns([1, 1])
@@ -1264,12 +1244,13 @@ elif st.session_state.step == 3:
             st.session_state.step = 4
             st.rerun()
 
-# STEP 4: Results
+# STEP 4: Results (UPDATED TO SHOW BOTH PRODUCTS)
 elif st.session_state.step == 4:
     building_type = st.session_state.get('building_type', 'Office')
     st.header('💡 Your Energy Savings Results')
     
-    inputs = {
+    # Base inputs
+    inputs_base = {
         'state': st.session_state.get('state'),
         'city': st.session_state.get('city'),
         'hdd': st.session_state.get('hdd', 0),
@@ -1280,51 +1261,105 @@ elif st.session_state.step == 4:
         'heating_fuel': st.session_state.get('heating_fuel', 'Electric'),
         'cooling_installed': st.session_state.get('cooling_installed', 'Yes'),
         'existing_window': st.session_state.get('existing_window', 'Single pane'),
-        'csw_type': st.session_state.get('csw_type', 'Winsert Lite'),
         'csw_area': st.session_state.get('csw_area', 12000),
         'electric_rate': st.session_state.get('electric_rate', 0.12),
         'gas_rate': st.session_state.get('gas_rate', 0.80)
     }
     
     if building_type == 'Office':
-        inputs['operating_hours'] = st.session_state.get('operating_hours', 8000)
-        results = calculate_savings_office(inputs)
+        inputs_base['operating_hours'] = st.session_state.get('operating_hours', 8000)
     elif building_type == 'Hotel':
-        inputs['occupancy_percent'] = st.session_state.get('occupancy_percent', 70)
-        results = calculate_savings_hotel(inputs)
+        inputs_base['occupancy_percent'] = st.session_state.get('occupancy_percent', 70)
     else:
-        inputs['school_type'] = st.session_state.get('school_type', 'Primary School')
-        results = calculate_savings_school(inputs)
+        inputs_base['school_type'] = st.session_state.get('school_type', 'Primary School')
     
-    if results:
+    # Calculate for Winsert Lite
+    inputs_lite = inputs_base.copy()
+    inputs_lite['csw_type'] = 'Winsert Lite'
+    
+    if building_type == 'Office':
+        results_lite = calculate_savings_office(inputs_lite)
+    elif building_type == 'Hotel':
+        results_lite = calculate_savings_hotel(inputs_lite)
+    else:
+        results_lite = calculate_savings_school(inputs_lite)
+    
+    # Calculate for Winsert Plus (only if existing window is single pane)
+    existing_window = st.session_state.get('existing_window', 'Single pane')
+    show_both_products = (existing_window == 'Single pane')
+    
+    results_plus = None
+    if show_both_products:
+        inputs_plus = inputs_base.copy()
+        inputs_plus['csw_type'] = 'Winsert Plus'
+        
+        if building_type == 'Office':
+            results_plus = calculate_savings_office(inputs_plus)
+        elif building_type == 'Hotel':
+            results_plus = calculate_savings_hotel(inputs_plus)
+        else:
+            results_plus = calculate_savings_school(inputs_plus)
+    
+    if results_lite and (not show_both_products or results_plus):
         st.success('✅ Calculation Complete!')
         
-        col_chart, col_cost = st.columns([1.3, 1])
+        # Main waterfall chart showing both products
+        st.markdown('<h3 style="text-align: center;">Energy Use Intensity (EUI) Comparison</h3>', unsafe_allow_html=True)
         
-        with col_chart:
-            st.markdown('<h4 style="text-align: center;">Energy Use Intensity (EUI) Reduction</h4>', unsafe_allow_html=True)
-            
-            baseline_eui = results['baseline_eui']
-            savings_eui = results['total_savings_kbtu_sf']
-            new_eui = results['new_eui']
+        baseline_eui = results_lite['baseline_eui']
+        savings_lite = results_lite['total_savings_kbtu_sf']
+        eui_lite = results_lite['new_eui']
+        
+        if show_both_products:
+            savings_plus = results_plus['total_savings_kbtu_sf']
+            eui_plus = results_plus['new_eui']
+            additional_savings = savings_plus - savings_lite
             
             fig = go.Figure(go.Waterfall(
-                orientation = "v",
-                measure = ["absolute", "relative", "total"],
-                x = ["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert", "EUI After<br>Winsert"],
-                y = [baseline_eui, -savings_eui, new_eui],
-                text = [f"{baseline_eui:.1f}", f"−{savings_eui:.1f}", f"{new_eui:.1f}"],
-                textposition = ["inside", "outside", "inside"],
-                textfont = dict(size=12, color="white"),
-                increasing = {"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
-                decreasing = {"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
-                totals = {"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
-                connector = {"line":{"color":"rgb(100, 100, 100)", "width":1}},
-                width = [0.5, 0.5, 0.5]
+                orientation="v",
+                measure=["absolute", "relative", "total", "relative", "total"],
+                x=["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert Lite", "EUI with<br>Winsert Lite", 
+                   "Additional Savings<br>Lite → Plus", "Final EUI with<br>Winsert Plus"],
+                y=[baseline_eui, -savings_lite, eui_lite, -additional_savings, eui_plus],
+                text=[f"{baseline_eui:.1f}", f"−{savings_lite:.1f}", f"{eui_lite:.1f}", 
+                      f"−{additional_savings:.1f}", f"{eui_plus:.1f}"],
+                textposition=["inside", "outside", "inside", "outside", "inside"],
+                textfont=dict(size=12, color="white"),
+                increasing={"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+                decreasing={"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+                totals={"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+                connector={"line":{"color":"rgb(100, 100, 100)", "width":1}},
+                width=[0.5, 0.5, 0.5, 0.5, 0.5]
             ))
             
             fig.update_layout(
-                height=320,
+                height=400,
+                showlegend=False,
+                yaxis=dict(title='kBtu/SF-yr', title_font=dict(size=11), gridcolor='#E0E0E0', rangemode='tozero'),
+                xaxis=dict(title_font=dict(size=10)),
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                margin=dict(t=30, b=100, l=60, r=20)
+            )
+        else:
+            # Only show Lite
+            fig = go.Figure(go.Waterfall(
+                orientation="v",
+                measure=["absolute", "relative", "total"],
+                x=["Baseline EUI<br>Before Winsert", "Savings with<br>Winsert Lite", "EUI with<br>Winsert Lite"],
+                y=[baseline_eui, -savings_lite, eui_lite],
+                text=[f"{baseline_eui:.1f}", f"−{savings_lite:.1f}", f"{eui_lite:.1f}"],
+                textposition=["inside", "outside", "inside"],
+                textfont=dict(size=14, color="white"),
+                increasing={"marker":{"color":"#D32F2F", "line":{"color":"#B71C1C", "width":2}}},
+                decreasing={"marker":{"color":"#FF9800", "line":{"color":"#F57C00", "width":2}}},
+                totals={"marker":{"color":"#4CAF50", "line":{"color":"#388E3C", "width":2}}},
+                connector={"line":{"color":"rgb(100, 100, 100)", "width":1}},
+                width=[0.5, 0.5, 0.5]
+            ))
+            
+            fig.update_layout(
+                height=400,
                 showlegend=False,
                 yaxis=dict(title='kBtu/SF-yr', title_font=dict(size=11), gridcolor='#E0E0E0', rangemode='tozero'),
                 xaxis=dict(title_font=dict(size=11)),
@@ -1333,107 +1368,196 @@ elif st.session_state.step == 4:
                 margin=dict(t=30, b=80, l=60, r=20)
             )
             
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
-                            padding: 20px; border-radius: 10px; text-align: center;
-                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-top: 10px;'>
-                    <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
-                        {results['percent_eui_savings']:.1f}%, {results['total_savings_kbtu_sf']:.1f} kBtu/SF-yr
-                    </h2>
-                    <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Savings</p>
-                </div>""",
-                unsafe_allow_html=True
-            )
+            st.info("ℹ️ Winsert Plus is only available for single pane existing windows. Results shown are for Winsert Lite only.")
         
-        with col_cost:
-            st.markdown('<h4 style="text-align: center;">Annual Cost Savings</h4>', unsafe_allow_html=True)
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
-                            padding: 28px; border-radius: 10px; text-align: center;
-                            box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px; margin-top: 10px;'>
-                    <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
-                    <h1 style='color: white; margin: 0; font-size: 2.5em; font-weight: bold;'>
-                        ${results['total_cost_savings']:,.0f}
-                    </h1>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
-                            padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
-                    <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Electric Savings</p>
-                    <p style='font-size: 1.6em; margin: 0; font-weight: bold; color: #1A4451;'>
-                        ${results['electric_cost_savings']:,.0f}<span style='font-size: 0.5em;'>/year</span>
-                    </p>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            
-            st.markdown(
-                f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
-                            padding: 20px; border-radius: 8px; text-align: center;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
-                    <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Natural Gas Savings</p>
-                    <p style='font-size: 1.6em; margin: 0; font-weight: bold; color: #1A4451;'>
-                        ${results['gas_cost_savings']:,.0f}<span style='font-size: 0.5em;'>/year</span>
-                    </p>
-                </div>""",
-                unsafe_allow_html=True
-            )
+        st.plotly_chart(fig, use_container_width=True)
         
         st.markdown('---')
-        st.markdown('<h4 style="text-align: center;">Energy Savings Breakdown</h4>', unsafe_allow_html=True)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(
-                f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
-                <p style='margin: 0; font-size: 0.9em; color: #666;'>Electric Energy Savings</p>
-                <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span></p>
-                </div>""",
-                unsafe_allow_html=True
-            )
-        with col2:
-            st.markdown(
-                f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
-                <p style='margin: 0; font-size: 0.9em; color: #666;'>Natural Gas Savings</p>
-                <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span></p>
-                </div>""",
-                unsafe_allow_html=True
-            )
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander('🔍 View Detailed Calculations'):
-            st.markdown('**Performance Metrics**')
-            detail_col1, detail_col2 = st.columns(2)
-            with detail_col1:
-                st.write(f"• Baseline EUI: {results['baseline_eui']:.1f} kBtu/SF-yr")
-                st.write(f"• New EUI: {results['new_eui']:.1f} kBtu/SF-yr")
-                st.write(f"• EUI Reduction: {results['percent_eui_savings']:.1f}%")
-            with detail_col2:
-                st.write(f"• Electric Heating: {results['heating_per_sf']:.4f} kWh/SF-CSW")
-                st.write(f"• Cooling & Fans: {results['cooling_per_sf']:.4f} kWh/SF-CSW")
-                st.write(f"• Gas Heating: {results['gas_per_sf']:.4f} therms/SF-CSW")
+        # Product Comparison Section
+        if show_both_products:
+            st.markdown('<h3 style="text-align: center;">Product Comparison</h3>', unsafe_allow_html=True)
             
-            st.markdown('**Project Details**')
-            detail_col3, detail_col4 = st.columns(2)
-            with detail_col3:
-                st.write(f"• Location: {inputs['city']}, {inputs['state']}")
-                st.write(f"• Heating Degree Days: {results['hdd']:,.0f}")
-                st.write(f"• Cooling Degree Days: {results['cdd']:,.0f}")
-            with detail_col4:
+            col_lite, col_plus = st.columns(2)
+            
+            with col_lite:
+                st.markdown('<h4 style="text-align: center;">Winsert Lite</h4>', unsafe_allow_html=True)
+                
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                                padding: 20px; border-radius: 10px; text-align: center;
+                                box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
+                        <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
+                            {results_lite['percent_eui_savings']:.1f}%
+                        </h2>
+                        <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
+                                padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                        <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
+                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: #1A4451;'>
+                            ${results_lite['total_cost_savings']:,.0f}
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(f"**Electric Savings:** {results_lite['electric_savings_kwh']:,.0f} kWh/yr")
+                st.markdown(f"**Gas Savings:** {results_lite['gas_savings_therms']:,.0f} therms/yr")
+            
+            with col_plus:
+                st.markdown('<h4 style="text-align: center;">Winsert Plus</h4>', unsafe_allow_html=True)
+                
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #1A4451 0%, #2C5F6F 100%); 
+                                padding: 20px; border-radius: 10px; text-align: center;
+                                box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
+                        <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
+                            {results_plus['percent_eui_savings']:.1f}%
+                        </h2>
+                        <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_plus['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #4A7C8C 0%, #6FA8B8 100%); 
+                                padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                        <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
+                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: #1A4451;'>
+                            ${results_plus['total_cost_savings']:,.0f}
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                st.markdown(f"**Electric Savings:** {results_plus['electric_savings_kwh']:,.0f} kWh/yr")
+                st.markdown(f"**Gas Savings:** {results_plus['gas_savings_therms']:,.0f} therms/yr")
+                
+                # Show additional savings
+                additional_cost_savings = results_plus['total_cost_savings'] - results_lite['total_cost_savings']
+                additional_eui_savings = results_plus['total_savings_kbtu_sf'] - results_lite['total_savings_kbtu_sf']
+                st.markdown(
+                    f"""<div style='background-color: #E8F4F8; padding: 12px; border-radius: 6px; margin-top: 10px; border-left: 4px solid #2C5F6F;'>
+                        <p style='margin: 0; font-size: 0.85em; color: #1A4451; font-weight: 600;'>Additional Savings vs Lite:</p>
+                        <p style='margin: 5px 0 0 0; font-size: 0.95em; color: #1A4451;'>
+                            +${additional_cost_savings:,.0f}/yr<br>
+                            +{additional_eui_savings:.1f} kBtu/SF-yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+        else:
+            # Only Lite results
+            st.markdown('<h3 style="text-align: center;">Winsert Lite Performance</h3>', unsafe_allow_html=True)
+            
+            col_eui, col_cost = st.columns([1, 1])
+            
+            with col_eui:
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                                padding: 28px; border-radius: 10px; text-align: center;
+                                box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
+                        <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
+                            {results_lite['percent_eui_savings']:.1f}%
+                        </h2>
+                        <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            
+            with col_cost:
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                                padding: 28px; border-radius: 10px; text-align: center;
+                                box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
+                        <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
+                        <h1 style='color: white; margin: 0; font-size: 2.5em; font-weight: bold;'>
+                            ${results_lite['total_cost_savings']:,.0f}
+                        </h1>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(
+                    f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
+                    <p style='margin: 0; font-size: 0.9em; color: #666;'>Electric Energy Savings</p>
+                    <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results_lite["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span></p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            with col2:
+                st.markdown(
+                    f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
+                    <p style='margin: 0; font-size: 0.9em; color: #666;'>Natural Gas Savings</p>
+                    <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results_lite["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span></p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+        
+        st.markdown('---')
+        
+        # Detailed calculations expander
+        with st.expander('🔍 View Detailed Calculations'):
+            if show_both_products:
+                st.markdown('### Winsert Lite')
+                detail_col1, detail_col2 = st.columns(2)
+                with detail_col1:
+                    st.write(f"• Baseline EUI: {results_lite['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_lite['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_lite['percent_eui_savings']:.1f}%")
+                with detail_col2:
+                    st.write(f"• Electric Heating: {results_lite['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_lite['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_lite['gas_per_sf']:.4f} therms/SF-CSW")
+                
+                st.markdown('### Winsert Plus')
+                detail_col3, detail_col4 = st.columns(2)
+                with detail_col3:
+                    st.write(f"• Baseline EUI: {results_plus['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_plus['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_plus['percent_eui_savings']:.1f}%")
+                with detail_col4:
+                    st.write(f"• Electric Heating: {results_plus['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_plus['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_plus['gas_per_sf']:.4f} therms/SF-CSW")
+            else:
+                detail_col1, detail_col2 = st.columns(2)
+                with detail_col1:
+                    st.write(f"• Baseline EUI: {results_lite['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_lite['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_lite['percent_eui_savings']:.1f}%")
+                with detail_col2:
+                    st.write(f"• Electric Heating: {results_lite['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_lite['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_lite['gas_per_sf']:.4f} therms/SF-CSW")
+            
+            st.markdown('### Project Details')
+            detail_col5, detail_col6 = st.columns(2)
+            with detail_col5:
+                st.write(f"• Location: {inputs_base['city']}, {inputs_base['state']}")
+                st.write(f"• Heating Degree Days: {results_lite['hdd']:,.0f}")
+                st.write(f"• Cooling Degree Days: {results_lite['cdd']:,.0f}")
+            with detail_col6:
                 st.write(f"• Building Type: {building_type}")
                 if building_type == 'School':
-                    st.write(f"• School Type: {inputs['school_type']}")
-                st.write(f"• Building Area: {inputs['building_area']:,} SF")
-                st.write(f"• Secondary Window Area: {inputs['csw_area']:,} SF")
-                if results['wwr']:
-                    st.write(f"• Window-to-Wall Ratio: {results['wwr']:.0%}")
+                    st.write(f"• School Type: {inputs_base['school_type']}")
+                st.write(f"• Building Area: {inputs_base['building_area']:,} SF")
+                st.write(f"• Secondary Window Area: {inputs_base['csw_area']:,} SF")
+                if results_lite['wwr']:
+                    st.write(f"• Window-to-Wall Ratio: {results_lite['wwr']:.0%}")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -1448,11 +1572,17 @@ elif st.session_state.step == 4:
     
     with col_download:
         try:
-            pdf_buffer = generate_pdf_report(inputs, results, building_type)
+            if show_both_products:
+                pdf_buffer = generate_pdf_report(inputs_base, results_lite, results_plus, building_type)
+                filename_suffix = "Comparison"
+            else:
+                pdf_buffer = generate_pdf_report(inputs_base, results_lite, results_lite, building_type)
+                filename_suffix = "Lite_Only"
+            
             st.download_button(
                 label='📄 Download PDF Report',
                 data=pdf_buffer,
-                file_name=f'Winsert_Savings_Report_{building_type}_{inputs["city"].replace(" ", "_")}.pdf',
+                file_name=f'Winsert_Savings_Report_{building_type}_{inputs_base["city"].replace(" ", "_")}_{filename_suffix}.pdf',
                 mime='application/pdf',
                 type='primary',
                 use_container_width=True
@@ -1465,7 +1595,7 @@ elif st.session_state.step == 4:
                 st.session_state.step = 0
                 st.rerun()
 
-# Sidebar
+# Sidebar (UPDATED TO REMOVE CSW TYPE)
 with st.sidebar:
     if st.session_state.step == 4:
         building_type = st.session_state.get('building_type', 'Office')
@@ -1512,20 +1642,6 @@ with st.sidebar:
         existing_window = st.selectbox('Existing Window', options=WINDOW_TYPES, index=WINDOW_TYPES.index(st.session_state.get('existing_window', 'Single pane')), key='sidebar_existing_window')
         if existing_window != st.session_state.get('existing_window'):
             st.session_state.existing_window = existing_window
-            st.rerun()
-        
-        if existing_window == 'Double pane':
-            csw_types_list = ['Winsert Lite']
-            csw_type_idx = 0
-        else:
-            csw_types_list = CSW_TYPES
-            csw_type_idx = 0
-            if 'csw_type' in st.session_state and st.session_state.csw_type in csw_types_list:
-                csw_type_idx = csw_types_list.index(st.session_state.csw_type)
-        
-        csw_type = st.selectbox('Product', options=csw_types_list, index=csw_type_idx, key='sidebar_csw_type')
-        if csw_type != st.session_state.get('csw_type'):
-            st.session_state.csw_type = csw_type
             st.rerun()
         
         csw_area = st.number_input('Secondary Window Area (SF)', min_value=0, max_value=int(building_area * 0.5), value=min(st.session_state.get('csw_area', 12000), int(building_area * 0.5)), step=100, key='sidebar_csw_area')
@@ -1610,7 +1726,7 @@ with st.sidebar:
             st.markdown(f"**Location:** {st.session_state.get('city', 'N/A')}, {st.session_state.get('state', 'N/A')}")
         if st.session_state.step > 2:
             st.markdown(f"**Building:** {st.session_state.get('building_area', 0):,} SF, {st.session_state.get('num_floors', 0)} floors")
-            st.markdown(f"**Windows:** {st.session_state.get('existing_window', 'N/A')} → {st.session_state.get('csw_type', 'N/A')}")
+            st.markdown(f"**Existing Windows:** {st.session_state.get('existing_window', 'N/A')}")
             st.markdown(f"**Secondary Window Area:** {st.session_state.get('csw_area', 0):,} SF")
         if st.session_state.step > 3:
             building_type = st.session_state.get('building_type', 'Office')
