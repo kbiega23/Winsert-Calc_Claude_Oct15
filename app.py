@@ -156,6 +156,27 @@ def calculate_cooling_multiplier_school(cdd, hvac_type):
     multiplier = a + b * cdd + c * (cdd ** 2) + d * (cdd ** 3)
     return max(0.0, min(1.0, multiplier))
 
+def apply_zero_floor_to_results(results):
+    """Apply zero floor to savings values for display - never show negative savings"""
+    if results is None:
+        return None
+    
+    display_results = results.copy()
+    
+    # Apply floor of zero to all savings metrics
+    display_results['electric_savings_kwh'] = max(0, results['electric_savings_kwh'])
+    display_results['gas_savings_therms'] = max(0, results['gas_savings_therms'])
+    display_results['electric_cost_savings'] = max(0, results['electric_cost_savings'])
+    display_results['gas_cost_savings'] = max(0, results['gas_cost_savings'])
+    display_results['total_cost_savings'] = max(0, results['total_cost_savings'])
+    display_results['total_savings_kbtu_sf'] = max(0, results['total_savings_kbtu_sf'])
+    display_results['percent_eui_savings'] = max(0, results['percent_eui_savings'])
+    
+    # Recalculate new_eui based on floored savings
+    display_results['new_eui'] = results['baseline_eui'] - display_results['total_savings_kbtu_sf']
+    
+    return display_results
+
 def build_lookup_config_office(inputs, hours):
     """Build configuration for finding Office regression row"""
     base = 'Single' if inputs['existing_window'] == 'Single pane' else 'Double'
@@ -806,7 +827,7 @@ def generate_pdf_report(inputs, results_lite, results_plus, building_type):
     eui_lite = results_lite['new_eui']
     savings_plus = results_plus['total_savings_kbtu_sf']
     eui_plus = results_plus['new_eui']
-    additional_savings = savings_plus - savings_lite
+    additional_savings = max(0, savings_plus - savings_lite)
     
     # Determine if we should show both products or just Lite
     show_both = inputs['existing_window'] == 'Single pane'
@@ -1244,7 +1265,7 @@ elif st.session_state.step == 3:
             st.session_state.step = 4
             st.rerun()
 
-# STEP 4: Results (UPDATED WITH RED/BLUE COLOR SCHEME AND BREAKDOWN BOXES)
+# STEP 4: Results (WITH ZERO FLOOR APPLIED TO ALL SAVINGS)
 elif st.session_state.step == 4:
     building_type = st.session_state.get('building_type', 'Office')
     st.header('💡 Your Energy Savings Results')
@@ -1301,19 +1322,23 @@ elif st.session_state.step == 4:
             results_plus = calculate_savings_school(inputs_plus)
     
     if results_lite and (not show_both_products or results_plus):
+        # Apply zero floor to all savings for display purposes
+        results_lite_display = apply_zero_floor_to_results(results_lite)
+        results_plus_display = apply_zero_floor_to_results(results_plus) if results_plus else None
+        
         st.success('✅ Calculation Complete!')
         
         # Main waterfall chart showing both products
         st.markdown('<h3 style="text-align: center;">Energy Use Intensity (EUI) Comparison</h3>', unsafe_allow_html=True)
         
-        baseline_eui = results_lite['baseline_eui']
-        savings_lite = results_lite['total_savings_kbtu_sf']
-        eui_lite = results_lite['new_eui']
+        baseline_eui = results_lite_display['baseline_eui']
+        savings_lite = results_lite_display['total_savings_kbtu_sf']
+        eui_lite = results_lite_display['new_eui']
         
         if show_both_products:
-            savings_plus = results_plus['total_savings_kbtu_sf']
-            eui_plus = results_plus['new_eui']
-            additional_savings = savings_plus - savings_lite
+            savings_plus = results_plus_display['total_savings_kbtu_sf']
+            eui_plus = results_plus_display['new_eui']
+            additional_savings = max(0, savings_plus - savings_lite)  # Also floor additional savings
             
             fig = go.Figure(go.Waterfall(
                 orientation="v",
@@ -1389,10 +1414,10 @@ elif st.session_state.step == 4:
                                 padding: 20px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
-                            {results_lite['percent_eui_savings']:.1f}%
+                            {results_lite_display['percent_eui_savings']:.1f}%
                         </h2>
                         <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
-                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite_display['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
                     </div>""",
                     unsafe_allow_html=True
                 )
@@ -1404,7 +1429,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
                         <p style='margin: 0 0 5px 0; color: white; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
                         <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: white;'>
-                            ${results_lite['total_cost_savings']:,.0f}
+                            ${results_lite_display['total_cost_savings']:,.0f}
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1417,7 +1442,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Electric Cost Savings</p>
                         <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #B71C1C;'>
-                            ${results_lite['electric_cost_savings']:,.0f}/yr
+                            ${results_lite_display['electric_cost_savings']:,.0f}/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1430,7 +1455,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Natural Gas Cost Savings</p>
                         <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #B71C1C;'>
-                            ${results_lite['gas_cost_savings']:,.0f}/yr
+                            ${results_lite_display['gas_cost_savings']:,.0f}/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1443,7 +1468,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Electric Energy Savings</p>
                         <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #B71C1C;'>
-                            {results_lite['electric_savings_kwh']:,.0f} kWh/yr
+                            {results_lite_display['electric_savings_kwh']:,.0f} kWh/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1456,7 +1481,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Natural Gas Savings</p>
                         <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #B71C1C;'>
-                            {results_lite['gas_savings_therms']:,.0f} therms/yr
+                            {results_lite_display['gas_savings_therms']:,.0f} therms/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1471,10 +1496,10 @@ elif st.session_state.step == 4:
                                 padding: 20px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
-                            {results_plus['percent_eui_savings']:.1f}%
+                            {results_plus_display['percent_eui_savings']:.1f}%
                         </h2>
                         <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
-                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_plus['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_plus_display['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
                     </div>""",
                     unsafe_allow_html=True
                 )
@@ -1486,7 +1511,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
                         <p style='margin: 0 0 5px 0; color: white; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
                         <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: white;'>
-                            ${results_plus['total_cost_savings']:,.0f}
+                            ${results_plus_display['total_cost_savings']:,.0f}
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1499,7 +1524,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Electric Cost Savings</p>
                         <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #0D47A1;'>
-                            ${results_plus['electric_cost_savings']:,.0f}/yr
+                            ${results_plus_display['electric_cost_savings']:,.0f}/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1512,7 +1537,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Natural Gas Cost Savings</p>
                         <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #0D47A1;'>
-                            ${results_plus['gas_cost_savings']:,.0f}/yr
+                            ${results_plus_display['gas_cost_savings']:,.0f}/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1525,7 +1550,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Electric Energy Savings</p>
                         <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #0D47A1;'>
-                            {results_plus['electric_savings_kwh']:,.0f} kWh/yr
+                            {results_plus_display['electric_savings_kwh']:,.0f} kWh/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1538,15 +1563,15 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
                         <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Natural Gas Savings</p>
                         <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #0D47A1;'>
-                            {results_plus['gas_savings_therms']:,.0f} therms/yr
+                            {results_plus_display['gas_savings_therms']:,.0f} therms/yr
                         </p>
                     </div>""",
                     unsafe_allow_html=True
                 )
                 
                 # Show additional savings
-                additional_cost_savings = results_plus['total_cost_savings'] - results_lite['total_cost_savings']
-                additional_eui_savings = results_plus['total_savings_kbtu_sf'] - results_lite['total_savings_kbtu_sf']
+                additional_cost_savings = max(0, results_plus_display['total_cost_savings'] - results_lite_display['total_cost_savings'])
+                additional_eui_savings = max(0, results_plus_display['total_savings_kbtu_sf'] - results_lite_display['total_savings_kbtu_sf'])
                 st.markdown(
                     f"""<div style='background-color: #E3F2FD; padding: 12px; border-radius: 6px; border-left: 4px solid #1976D2;'>
                         <p style='margin: 0; font-size: 0.85em; color: #0D47A1; font-weight: 600;'>Additional Savings vs Lite:</p>
@@ -1569,10 +1594,10 @@ elif st.session_state.step == 4:
                                 padding: 28px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
-                            {results_lite['percent_eui_savings']:.1f}%
+                            {results_lite_display['percent_eui_savings']:.1f}%
                         </h2>
                         <p style='color: white; margin: 0; font-size: 0.85em; opacity: 0.95;'>EUI Reduction</p>
-                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
+                        <p style='color: white; margin: 5px 0 0 0; font-size: 1.1em;'>{results_lite_display['total_savings_kbtu_sf']:.1f} kBtu/SF-yr</p>
                     </div>""",
                     unsafe_allow_html=True
                 )
@@ -1584,7 +1609,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
                         <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
                         <h1 style='color: white; margin: 0; font-size: 2.5em; font-weight: bold;'>
-                            ${results_lite['total_cost_savings']:,.0f}
+                            ${results_lite_display['total_cost_savings']:,.0f}
                         </h1>
                     </div>""",
                     unsafe_allow_html=True
@@ -1602,7 +1627,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
                         <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Electric Cost Savings</p>
                         <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
-                            ${results_lite['electric_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
+                            ${results_lite_display['electric_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1614,7 +1639,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
                         <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Electric Energy Savings</p>
                         <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
-                            {results_lite["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span>
+                            {results_lite_display["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span>
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1627,7 +1652,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
                         <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Natural Gas Cost Savings</p>
                         <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
-                            ${results_lite['gas_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
+                            ${results_lite_display['gas_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1639,7 +1664,7 @@ elif st.session_state.step == 4:
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
                         <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Natural Gas Savings</p>
                         <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
-                            {results_lite["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span>
+                            {results_lite_display["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span>
                         </p>
                     </div>""",
                     unsafe_allow_html=True
@@ -1653,49 +1678,49 @@ elif st.session_state.step == 4:
                 st.markdown('### Winsert Lite')
                 detail_col1, detail_col2 = st.columns(2)
                 with detail_col1:
-                    st.write(f"• Baseline EUI: {results_lite['baseline_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• New EUI: {results_lite['new_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• EUI Reduction: {results_lite['percent_eui_savings']:.1f}%")
+                    st.write(f"• Baseline EUI: {results_lite_display['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_lite_display['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_lite_display['percent_eui_savings']:.1f}%")
                 with detail_col2:
-                    st.write(f"• Electric Heating: {results_lite['heating_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Cooling & Fans: {results_lite['cooling_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Gas Heating: {results_lite['gas_per_sf']:.4f} therms/SF-CSW")
+                    st.write(f"• Electric Heating: {results_lite_display['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_lite_display['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_lite_display['gas_per_sf']:.4f} therms/SF-CSW")
                 
                 st.markdown('### Winsert Plus')
                 detail_col3, detail_col4 = st.columns(2)
                 with detail_col3:
-                    st.write(f"• Baseline EUI: {results_plus['baseline_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• New EUI: {results_plus['new_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• EUI Reduction: {results_plus['percent_eui_savings']:.1f}%")
+                    st.write(f"• Baseline EUI: {results_plus_display['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_plus_display['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_plus_display['percent_eui_savings']:.1f}%")
                 with detail_col4:
-                    st.write(f"• Electric Heating: {results_plus['heating_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Cooling & Fans: {results_plus['cooling_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Gas Heating: {results_plus['gas_per_sf']:.4f} therms/SF-CSW")
+                    st.write(f"• Electric Heating: {results_plus_display['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_plus_display['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_plus_display['gas_per_sf']:.4f} therms/SF-CSW")
             else:
                 detail_col1, detail_col2 = st.columns(2)
                 with detail_col1:
-                    st.write(f"• Baseline EUI: {results_lite['baseline_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• New EUI: {results_lite['new_eui']:.1f} kBtu/SF-yr")
-                    st.write(f"• EUI Reduction: {results_lite['percent_eui_savings']:.1f}%")
+                    st.write(f"• Baseline EUI: {results_lite_display['baseline_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• New EUI: {results_lite_display['new_eui']:.1f} kBtu/SF-yr")
+                    st.write(f"• EUI Reduction: {results_lite_display['percent_eui_savings']:.1f}%")
                 with detail_col2:
-                    st.write(f"• Electric Heating: {results_lite['heating_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Cooling & Fans: {results_lite['cooling_per_sf']:.4f} kWh/SF-CSW")
-                    st.write(f"• Gas Heating: {results_lite['gas_per_sf']:.4f} therms/SF-CSW")
+                    st.write(f"• Electric Heating: {results_lite_display['heating_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Cooling & Fans: {results_lite_display['cooling_per_sf']:.4f} kWh/SF-CSW")
+                    st.write(f"• Gas Heating: {results_lite_display['gas_per_sf']:.4f} therms/SF-CSW")
             
             st.markdown('### Project Details')
             detail_col5, detail_col6 = st.columns(2)
             with detail_col5:
                 st.write(f"• Location: {inputs_base['city']}, {inputs_base['state']}")
-                st.write(f"• Heating Degree Days: {results_lite['hdd']:,.0f}")
-                st.write(f"• Cooling Degree Days: {results_lite['cdd']:,.0f}")
+                st.write(f"• Heating Degree Days: {results_lite_display['hdd']:,.0f}")
+                st.write(f"• Cooling Degree Days: {results_lite_display['cdd']:,.0f}")
             with detail_col6:
                 st.write(f"• Building Type: {building_type}")
                 if building_type == 'School':
                     st.write(f"• School Type: {inputs_base['school_type']}")
                 st.write(f"• Building Area: {inputs_base['building_area']:,} SF")
                 st.write(f"• Secondary Window Area: {inputs_base['csw_area']:,} SF")
-                if results_lite['wwr']:
-                    st.write(f"• Window-to-Wall Ratio: {results_lite['wwr']:.0%}")
+                if results_lite_display['wwr']:
+                    st.write(f"• Window-to-Wall Ratio: {results_lite_display['wwr']:.0%}")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -1711,10 +1736,10 @@ elif st.session_state.step == 4:
     with col_download:
         try:
             if show_both_products:
-                pdf_buffer = generate_pdf_report(inputs_base, results_lite, results_plus, building_type)
+                pdf_buffer = generate_pdf_report(inputs_base, results_lite_display, results_plus_display, building_type)
                 filename_suffix = "Comparison"
             else:
-                pdf_buffer = generate_pdf_report(inputs_base, results_lite, results_lite, building_type)
+                pdf_buffer = generate_pdf_report(inputs_base, results_lite_display, results_lite_display, building_type)
                 filename_suffix = "Lite_Only"
             
             st.download_button(
