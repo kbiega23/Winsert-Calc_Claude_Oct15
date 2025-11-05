@@ -1244,7 +1244,7 @@ elif st.session_state.step == 3:
             st.session_state.step = 4
             st.rerun()
 
-# STEP 4: Results (UPDATED TO SHOW BOTH PRODUCTS)
+# STEP 4: Results (UPDATED WITH RED/BLUE COLOR SCHEME AND BREAKDOWN BOXES)
 elif st.session_state.step == 4:
     building_type = st.session_state.get('building_type', 'Office')
     st.header('💡 Your Energy Savings Results')
@@ -1368,23 +1368,24 @@ elif st.session_state.step == 4:
                 margin=dict(t=30, b=80, l=60, r=20)
             )
             
-            st.info("ℹ️ Winsert Plus is only available for single pane existing windows. Results shown are for Winsert Lite only.")
+            st.info("ℹ️ Calculator only evaluates Winsert Lite if existing windows are dual pane. Results shown are for Winsert Lite only.")
         
         st.plotly_chart(fig, use_container_width=True)
         
         st.markdown('---')
         
-        # Product Comparison Section
+        # Product Comparison Section (WITH RED/BLUE COLOR SCHEME AND BREAKDOWN BOXES)
         if show_both_products:
             st.markdown('<h3 style="text-align: center;">Product Comparison</h3>', unsafe_allow_html=True)
             
             col_lite, col_plus = st.columns(2)
             
             with col_lite:
-                st.markdown('<h4 style="text-align: center;">Winsert Lite</h4>', unsafe_allow_html=True)
+                st.markdown('<h4 style="text-align: center; color: #C62828;">Winsert Lite</h4>', unsafe_allow_html=True)
                 
+                # EUI Reduction Box (Red)
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                    f"""<div style='background: linear-gradient(135deg, #C62828 0%, #E53935 100%); 
                                 padding: 20px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
@@ -1396,26 +1397,77 @@ elif st.session_state.step == 4:
                     unsafe_allow_html=True
                 )
                 
+                # Annual Cost Savings Box (Red)
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #6FA8B8 0%, #8FC1D0 100%); 
-                                padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
+                    f"""<div style='background: linear-gradient(135deg, #D32F2F 0%, #EF5350 100%); 
+                                padding: 20px; border-radius: 8px; margin-bottom: 8px; text-align: center;
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
-                        <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
-                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: #1A4451;'>
+                        <p style='margin: 0 0 5px 0; color: white; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
+                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: white;'>
                             ${results_lite['total_cost_savings']:,.0f}
                         </p>
                     </div>""",
                     unsafe_allow_html=True
                 )
                 
-                st.markdown(f"**Electric Savings:** {results_lite['electric_savings_kwh']:,.0f} kWh/yr")
-                st.markdown(f"**Gas Savings:** {results_lite['gas_savings_therms']:,.0f} therms/yr")
+                # Electric Cost Savings Sub-box (Light Red)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 6px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Electric Cost Savings</p>
+                        <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #B71C1C;'>
+                            ${results_lite['electric_cost_savings']:,.0f}/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Gas Cost Savings Sub-box (Light Red)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Natural Gas Cost Savings</p>
+                        <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #B71C1C;'>
+                            ${results_lite['gas_cost_savings']:,.0f}/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Electric Energy Savings (Light Red)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 6px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Electric Energy Savings</p>
+                        <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #B71C1C;'>
+                            {results_lite['electric_savings_kwh']:,.0f} kWh/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Gas Savings (Light Red)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 12px; border-radius: 6px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #B71C1C; font-size: 0.8em; font-weight: 600;'>Natural Gas Savings</p>
+                        <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #B71C1C;'>
+                            {results_lite['gas_savings_therms']:,.0f} therms/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
             
             with col_plus:
-                st.markdown('<h4 style="text-align: center;">Winsert Plus</h4>', unsafe_allow_html=True)
+                st.markdown('<h4 style="text-align: center; color: #1565C0;">Winsert Plus</h4>', unsafe_allow_html=True)
                 
+                # EUI Reduction Box (Blue)
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #1A4451 0%, #2C5F6F 100%); 
+                    f"""<div style='background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%); 
                                 padding: 20px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1); margin-bottom: 15px;'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2em; font-weight: bold;'>
@@ -1427,28 +1479,78 @@ elif st.session_state.step == 4:
                     unsafe_allow_html=True
                 )
                 
+                # Annual Cost Savings Box (Blue)
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #4A7C8C 0%, #6FA8B8 100%); 
-                                padding: 20px; border-radius: 8px; margin-bottom: 12px; text-align: center;
+                    f"""<div style='background: linear-gradient(135deg, #1976D2 0%, #42A5F5 100%); 
+                                padding: 20px; border-radius: 8px; margin-bottom: 8px; text-align: center;
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
-                        <p style='margin: 0 0 5px 0; color: #1A4451; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
-                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: #1A4451;'>
+                        <p style='margin: 0 0 5px 0; color: white; font-size: 0.9em; font-weight: 600;'>Annual Cost Savings</p>
+                        <p style='font-size: 1.8em; margin: 0; font-weight: bold; color: white;'>
                             ${results_plus['total_cost_savings']:,.0f}
                         </p>
                     </div>""",
                     unsafe_allow_html=True
                 )
                 
-                st.markdown(f"**Electric Savings:** {results_plus['electric_savings_kwh']:,.0f} kWh/yr")
-                st.markdown(f"**Gas Savings:** {results_plus['gas_savings_therms']:,.0f} therms/yr")
+                # Electric Cost Savings Sub-box (Light Blue)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 6px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Electric Cost Savings</p>
+                        <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #0D47A1;'>
+                            ${results_plus['electric_cost_savings']:,.0f}/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Gas Cost Savings Sub-box (Light Blue)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 12px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Natural Gas Cost Savings</p>
+                        <p style='font-size: 1.3em; margin: 0; font-weight: bold; color: #0D47A1;'>
+                            ${results_plus['gas_cost_savings']:,.0f}/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Electric Energy Savings (Light Blue)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 6px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Electric Energy Savings</p>
+                        <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #0D47A1;'>
+                            {results_plus['electric_savings_kwh']:,.0f} kWh/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                
+                # Gas Savings (Light Blue)
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%); 
+                                padding: 12px; border-radius: 6px; margin-bottom: 10px; text-align: center;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0 0 3px 0; color: #0D47A1; font-size: 0.8em; font-weight: 600;'>Natural Gas Savings</p>
+                        <p style='font-size: 1.2em; margin: 0; font-weight: bold; color: #0D47A1;'>
+                            {results_plus['gas_savings_therms']:,.0f} therms/yr
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
                 
                 # Show additional savings
                 additional_cost_savings = results_plus['total_cost_savings'] - results_lite['total_cost_savings']
                 additional_eui_savings = results_plus['total_savings_kbtu_sf'] - results_lite['total_savings_kbtu_sf']
                 st.markdown(
-                    f"""<div style='background-color: #E8F4F8; padding: 12px; border-radius: 6px; margin-top: 10px; border-left: 4px solid #2C5F6F;'>
-                        <p style='margin: 0; font-size: 0.85em; color: #1A4451; font-weight: 600;'>Additional Savings vs Lite:</p>
-                        <p style='margin: 5px 0 0 0; font-size: 0.95em; color: #1A4451;'>
+                    f"""<div style='background-color: #E3F2FD; padding: 12px; border-radius: 6px; border-left: 4px solid #1976D2;'>
+                        <p style='margin: 0; font-size: 0.85em; color: #0D47A1; font-weight: 600;'>Additional Savings vs Lite:</p>
+                        <p style='margin: 5px 0 0 0; font-size: 0.95em; color: #0D47A1;'>
                             +${additional_cost_savings:,.0f}/yr<br>
                             +{additional_eui_savings:.1f} kBtu/SF-yr
                         </p>
@@ -1456,14 +1558,14 @@ elif st.session_state.step == 4:
                     unsafe_allow_html=True
                 )
         else:
-            # Only Lite results
+            # Only Lite results (RED COLOR SCHEME WITH BREAKDOWN)
             st.markdown('<h3 style="text-align: center;">Winsert Lite Performance</h3>', unsafe_allow_html=True)
             
             col_eui, col_cost = st.columns([1, 1])
             
             with col_eui:
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                    f"""<div style='background: linear-gradient(135deg, #C62828 0%, #E53935 100%); 
                                 padding: 28px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
                         <h2 style='color: white; margin: 0 0 8px 0; font-size: 2.2em; font-weight: bold;'>
@@ -1477,7 +1579,7 @@ elif st.session_state.step == 4:
             
             with col_cost:
                 st.markdown(
-                    f"""<div style='background: linear-gradient(135deg, #2C5F6F 0%, #4A90A4 100%); 
+                    f"""<div style='background: linear-gradient(135deg, #C62828 0%, #E53935 100%); 
                                 padding: 28px; border-radius: 10px; text-align: center;
                                 box-shadow: 0 3px 5px rgba(0,0,0,0.1);'>
                         <p style='color: white; margin: 0 0 5px 0; font-size: 0.9em; font-weight: 500;'>Total Annual Savings</p>
@@ -1489,20 +1591,56 @@ elif st.session_state.step == 4:
                 )
             
             st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Breakdown boxes (Red theme)
             col1, col2 = st.columns(2)
             with col1:
+                # Electric Cost Savings
                 st.markdown(
-                    f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
-                    <p style='margin: 0; font-size: 0.9em; color: #666;'>Electric Energy Savings</p>
-                    <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results_lite["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span></p>
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 15px; border-radius: 8px; margin-bottom: 10px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Electric Cost Savings</p>
+                        <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
+                            ${results_lite['electric_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                # Electric Energy Savings
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 15px; border-radius: 8px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Electric Energy Savings</p>
+                        <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
+                            {results_lite["electric_savings_kwh"]:,.0f} <span style='font-size: 0.6em;'>kWh/yr</span>
+                        </p>
                     </div>""",
                     unsafe_allow_html=True
                 )
             with col2:
+                # Gas Cost Savings
                 st.markdown(
-                    f"""<div style='padding: 15px; background-color: #f0f2f6; border-radius: 8px;'>
-                    <p style='margin: 0; font-size: 0.9em; color: #666;'>Natural Gas Savings</p>
-                    <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #333;'>{results_lite["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span></p>
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 15px; border-radius: 8px; margin-bottom: 10px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Natural Gas Cost Savings</p>
+                        <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
+                            ${results_lite['gas_cost_savings']:,.0f}<span style='font-size: 0.6em;'>/yr</span>
+                        </p>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                # Gas Savings
+                st.markdown(
+                    f"""<div style='background: linear-gradient(135deg, #FFCDD2 0%, #EF9A9A 100%); 
+                                padding: 15px; border-radius: 8px; text-align: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.06);'>
+                        <p style='margin: 0; font-size: 0.9em; color: #B71C1C; font-weight: 600;'>Natural Gas Savings</p>
+                        <p style='margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold; color: #B71C1C;'>
+                            {results_lite["gas_savings_therms"]:,.0f} <span style='font-size: 0.6em;'>therms/yr</span>
+                        </p>
                     </div>""",
                     unsafe_allow_html=True
                 )
